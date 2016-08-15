@@ -6,22 +6,16 @@ import com.google.cloud.dataflow.sdk.options.DataflowPipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.runners.BlockingDataflowPipelineRunner;
-import com.google.cloud.dataflow.sdk.transforms.Count;
-import com.google.cloud.dataflow.sdk.transforms.DoFn;
-import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
-import com.google.cloud.dataflow.sdk.transforms.MapElements;
-import com.google.cloud.dataflow.sdk.transforms.ParDo;
-import com.google.cloud.dataflow.sdk.transforms.View;
+import com.google.cloud.dataflow.sdk.transforms.*;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 
 public class ParallelFPGrowth {
+
+    public static final int NUMBER_OF_GROUPS = 2;
 
     public static final String PROJECT_ID = "rewe-148055";
     public static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
@@ -43,14 +37,39 @@ public class ParallelFPGrowth {
         pipeline.apply("readTransactionsInputFile", TextIO.Read.from(INPUT_BUCKET_LOCATION))
                 .apply("extractTransactionId_ProductIdPairs", MapElements.via(new TransactionIdAndProductIdPairsFn()))
                 .apply("assembleTransactions", GroupByKey.<String, Integer>create())
-                .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency));
+                .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency))
+                .apply("generateGroupDependentTransactions", generateGroupDependentTransactions())
+                .apply("generateShards");
 
-                // for each transaction and each group output a KV <groupId, filteredTransaction>
-                // combine PER KEY all transactions into local fp-trees
-                // aggregate local fp-trees
+
+        // for each transaction and each group output a KV <groupId, filteredTransaction>
+        // combine PER KEY all transactions into local fp-trees
+        // aggregate local fp-trees
 
         pipeline.run();
 
+    }
+
+    private static ParDo.Bound<List<Integer>, KV<Integer, List<Integer>>> generateGroupDependentTransactions() {
+        return ParDo.of(new DoFn<List<Integer>, KV<Integer, List<Integer>>>() {
+            @Override
+            public void processElement(ProcessContext c) throws Exception {
+                List<Integer> transaction = c.element();
+                Set<Integer> groups = new HashSet<>();
+                for (int j = transaction.size() - 1; j >= 0; j--) {
+                    int productId = transaction.get(j);
+                    int groupId = getGroupId(productId);
+
+                    if (!groups.contains(groupId)){
+                        List<Integer> groupDependentTransaction = transaction.subList(0,j + 1);
+                        final KV<Integer, List<Integer>> outputTransaction = KV.of(groupId, groupDependentTransaction);
+                        System.out.println(outputTransaction);
+                        c.output(outputTransaction);
+                    }
+                    groups.add(groupId);
+                }
+            }
+        });
     }
 
     private static void runOnDataflowService(DataflowPipelineOptions options) {
@@ -86,5 +105,10 @@ public class ParallelFPGrowth {
 
             }
         });
+    }
+
+
+    private static int getGroupId(Integer productId) {
+        return productId % NUMBER_OF_GROUPS;
     }
 }
