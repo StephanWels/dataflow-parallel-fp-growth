@@ -3,9 +3,15 @@ package com.stewel.dataflow;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.io.TextIO;
 import com.google.cloud.dataflow.sdk.options.DataflowPipelineOptions;
+import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.runners.BlockingDataflowPipelineRunner;
-import com.google.cloud.dataflow.sdk.transforms.*;
+import com.google.cloud.dataflow.sdk.transforms.Count;
+import com.google.cloud.dataflow.sdk.transforms.DoFn;
+import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
+import com.google.cloud.dataflow.sdk.transforms.MapElements;
+import com.google.cloud.dataflow.sdk.transforms.ParDo;
+import com.google.cloud.dataflow.sdk.transforms.View;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 
@@ -21,21 +27,21 @@ public class ParallelFPGrowth {
     public static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     public static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input/*";
 
-    public static void main(String... args) {
-
-        DataflowPipelineOptions options = PipelineOptionsFactory.create().as(DataflowPipelineOptions.class);
-        runOnDataflowService(options);
-        Pipeline pipeline = Pipeline.create(options);
+    public static void main(final String... args) {
+        // Read options from the command-line, check for required command-line arguments and validate argument values.
+        final PipelineOptions options = PipelineOptionsFactory.fromArgs(args).withValidation().create();
+        // Create the Pipeline with the specified options.
+        final Pipeline pipeline = Pipeline.create(options);
 
         final PCollectionView<Map<Integer, Long>> frequentItemsWithFrequency = pipeline
                 .apply("readTransactionsInputFile", TextIO.Read.from(INPUT_BUCKET_LOCATION))
-                .apply("extractProductId_TransactionIdPairs", transformToProductIdAndTransactionIdPairs())
+                .apply("extractProductId_TransactionIdPairs", MapElements.via(new ProductIdAndTransactionIdPairsFn()))
                 .apply("countFrequencies", Count.<Integer, String>perKey())
                 .apply("filterForMinimumSupport", filterForMinimumSupport())
                 .apply("supplyAsView", View.<Integer, Long>asMap());
 
         pipeline.apply("readTransactionsInputFile", TextIO.Read.from(INPUT_BUCKET_LOCATION))
-                .apply("extractTransactionId_ProductIdPairs", transformToTransactionIdAndProductIdPairs())
+                .apply("extractTransactionId_ProductIdPairs", MapElements.via(new TransactionIdAndProductIdPairsFn()))
                 .apply("assembleTransactions", GroupByKey.<String, Integer>create())
                 .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency));
 
@@ -78,30 +84,6 @@ public class ParallelFPGrowth {
                 } else {
                 }
 
-            }
-        });
-    }
-
-    private static ParDo.Bound<String, KV<Integer, String>> transformToProductIdAndTransactionIdPairs() {
-        return ParDo.of(new DoFn<String, KV<Integer, String>>() {
-            @Override
-            public void processElement(ProcessContext c) throws Exception {
-                System.out.println(c.element());
-                final String transactionId = c.element().split(",")[0];
-                final String productId = c.element().replaceAll(".*\\(", "").replaceAll("\\).*", "");
-                System.out.println(transactionId + " | " + productId);
-                c.output(KV.of(Integer.parseInt(productId), transactionId));
-            }
-        });
-    }
-
-    private static ParDo.Bound<String, KV<String, Integer>> transformToTransactionIdAndProductIdPairs() {
-        return ParDo.of(new DoFn<String, KV<String, Integer>>() {
-            @Override
-            public void processElement(ProcessContext c) throws Exception {
-                final String transactionId = c.element().split(",")[0];
-                final String productId = c.element().replaceAll(".*\\(", "").replaceAll("\\).*", "");
-                c.output(KV.of(transactionId, Integer.parseInt(productId)));
             }
         });
     }
