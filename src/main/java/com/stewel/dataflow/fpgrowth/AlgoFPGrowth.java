@@ -18,12 +18,7 @@ package com.stewel.dataflow.fpgrowth;
  */
 
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -81,7 +76,7 @@ public class AlgoFPGrowth {
      * @return the result if no output file path is provided.
      * @throws IOException exception if error reading or writing files
      */
-    public Itemsets runAlgorithm(Map<Integer, Integer> mapSupport, String output, double minsupp) throws FileNotFoundException, IOException {
+    public Itemsets runAlgorithm(String input, String output, double minsupp) throws FileNotFoundException, IOException {
         // record start time
         startTimestamp = System.currentTimeMillis();
         // number of itemsets found
@@ -97,6 +92,13 @@ public class AlgoFPGrowth {
             patterns = null;
             writer = new BufferedWriter(new FileWriter(output));
         }
+
+        // (1) PREPROCESSING: Initial database scan to determine the frequency of each item
+        // The frequency is stored in a map:
+        //    key: item   value: support
+        final Map<Integer, Integer> mapSupport = new HashMap<Integer, Integer>();
+
+        scanDatabaseToDetermineFrequencyOfSingleItems(input, mapSupport);
 
         // convert the minimum support as percentage to a
         // relative minimum support
@@ -226,9 +228,10 @@ public class AlgoFPGrowth {
      * @param mapSupport The frequency of each item in the prefix tree.
      * @throws IOException  exception if error writing the output file
      */
-    private void fpgrowth(FPTree tree, int[] prefixAlpha, int prefixSupport, Map<Integer, Integer> mapSupport) throws IOException {
+    public void fpgrowth(FPTree tree, int[] prefixAlpha, int prefixSupport, Map<Integer, Integer> mapSupport) throws IOException {
+        writer = new BufferedWriter(new OutputStreamWriter(System.out));
         // We need to check if there is a single path in the prefix tree or not.
-        if(tree.hasMoreThanOnePath == false){
+        if(!tree.hasMoreThanOnePath){
             // That means that there is a single path, so we
             // add all combinations of this path, concatenated with the prefix "alpha", to the set of patterns found.
             if(tree.root.childs.size() ==0) {
