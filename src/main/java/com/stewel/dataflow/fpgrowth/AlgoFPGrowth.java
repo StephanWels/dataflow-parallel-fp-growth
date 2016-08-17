@@ -18,8 +18,12 @@ package com.stewel.dataflow.fpgrowth;
  */
 
 
+import com.google.cloud.dataflow.sdk.transforms.DoFn;
+import com.stewel.dataflow.ItemsListWithSupport;
+
 import java.io.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * This is an implementation of the FPGROWTH algorithm (Han et al., 2004).
@@ -48,6 +52,7 @@ public class AlgoFPGrowth {
     public int relativeMinsupp = 3;// the relative minimum support
 
     BufferedWriter writer = null; // object to write the output file
+    DoFn.ProcessContext c;
 
     // The  patterns that are found
     // (if the user want to keep them into memory)
@@ -159,7 +164,7 @@ public class AlgoFPGrowth {
         int[] prefixAlpha = new int[0];
         // if at least an item is frequent
         if (tree.headerList.size() > 0) {
-            fpgrowth(tree, prefixAlpha, transactionCount, mapSupport, writer);
+            fpgrowth(tree, prefixAlpha, transactionCount, mapSupport, writer, c);
         }
 
         // close the output file if the result was saved to a file
@@ -225,8 +230,9 @@ public class AlgoFPGrowth {
      * @param mapSupport The frequency of each item in the prefix tree.
      * @throws IOException exception if error writing the output file
      */
-    public void fpgrowth(FPTree tree, int[] prefixAlpha, int prefixSupport, Map<Integer, Integer> mapSupport, BufferedWriter writer) throws IOException {
+    public void fpgrowth(FPTree tree, int[] prefixAlpha, int prefixSupport, Map<Integer, Integer> mapSupport, BufferedWriter writer, DoFn.ProcessContext c) throws IOException {
         this.writer = writer;
+        this.c = c;
         // We need to check if there is a single path in the prefix tree or not.
         if (!tree.hasMoreThanOnePath) {
             // That means that there is a single path, so we
@@ -334,7 +340,7 @@ public class AlgoFPGrowth {
             // Mine recursively the Beta tree if the root as child(s)
             if (treeBeta.root.childs.size() > 0) {
                 // recursive call
-                fpgrowth(treeBeta, beta, betaSupport, mapSupportBeta, writer);
+                fpgrowth(treeBeta, beta, betaSupport, mapSupportBeta, writer, c);
             }
         }
 
@@ -394,6 +400,8 @@ public class AlgoFPGrowth {
             // write to file and create a new line
             writer.write(buffer.toString());
             writer.newLine();
+            final ArrayList<Integer> itemsList = new ArrayList(Arrays.stream(itemset).mapToObj(Integer::valueOf).collect(Collectors.toList()));
+            c.output(new ItemsListWithSupport(itemsList, Long.valueOf(support)));
         }// otherwise the result is kept into memory
         else {
             // create an object Itemset and add it to the set of patterns

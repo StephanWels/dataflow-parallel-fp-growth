@@ -6,7 +6,12 @@ import com.google.cloud.dataflow.sdk.options.DataflowPipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.runners.BlockingDataflowPipelineRunner;
-import com.google.cloud.dataflow.sdk.transforms.*;
+import com.google.cloud.dataflow.sdk.transforms.Count;
+import com.google.cloud.dataflow.sdk.transforms.DoFn;
+import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
+import com.google.cloud.dataflow.sdk.transforms.MapElements;
+import com.google.cloud.dataflow.sdk.transforms.ParDo;
+import com.google.cloud.dataflow.sdk.transforms.View;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
@@ -14,7 +19,13 @@ import com.stewel.dataflow.fpgrowth.FPTreeConverter;
 
 import java.io.BufferedWriter;
 import java.io.OutputStreamWriter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -27,6 +38,7 @@ public class ParallelFPGrowth {
     public static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     public static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input/*";
     public static final int MINIMUM_SUPPORT = 3;
+    public static final int DEFAULT_HEAP_SIZE = 50;
 
     public static void main(final String... args) {
         // Read options from the command-line, check for required command-line arguments and validate argument values.
@@ -47,7 +59,7 @@ public class ParallelFPGrowth {
                 .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency))
                 .apply("generateGroupDependentTransactions", generateGroupDependentTransactions())
                 .apply("groupByGroupId", GroupByKey.create())
-                .apply("generateFPTrees", ParDo.withSideInputs(frequentItemsWithFrequency).of(new DoFn<KV<Integer, Iterable<TransactionTree>>, String>() {
+                .apply("generateFPTrees", ParDo.withSideInputs(frequentItemsWithFrequency).of(new DoFn<KV<Integer, Iterable<TransactionTree>>, ItemsListWithSupport>() {
                     @Override
                     public void processElement(ProcessContext c) throws Exception {
                         final int groupId = c.element().getKey();
@@ -73,8 +85,32 @@ public class ParallelFPGrowth {
 
 
                         BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
-                        algoFPGrowth.fpgrowth(FPTreeConverter.convertToSPMFModel(cTree, productFrequencies), new int[0], transactionCount.get(), productFrequencies, writer);
+                        algoFPGrowth.fpgrowth(FPTreeConverter.convertToSPMFModel(cTree, productFrequencies), new int[0], transactionCount.get(), productFrequencies, writer, c);
                         writer.flush();
+                    }
+                }))
+                .apply("mapForAggregating", ParDo.of(new DoFn<ItemsListWithSupport, KV<Integer, ItemsListWithSupport>>() {
+
+                    @Override
+                    public void processElement(ProcessContext c) throws Exception {
+                        ItemsListWithSupport patterns = c.element();
+                        for (Integer item : patterns.getKey()) {
+                            c.output(KV.of(item, patterns));
+                        }
+                    }
+                }))
+                .apply("groupByGroupId", GroupByKey.create())
+                .apply("reduceForAggregating", ParDo.of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, KV<Integer, TopKStringPatterns>>() {
+
+                    @Override
+                    public void processElement(ProcessContext c) throws Exception {
+                        System.out.println("input=" + c.element());
+                        TopKStringPatterns topKStringPatterns = new TopKStringPatterns();
+                        for(final ItemsListWithSupport pattern : c.element().getValue()) {
+                            topKStringPatterns = topKStringPatterns.merge(new TopKStringPatterns(Collections.singletonList(new ItemsListWithSupport(pattern.getKey(), pattern.getValue()))), DEFAULT_HEAP_SIZE);
+                        }
+                        System.out.println("merged=" + topKStringPatterns);
+                        c.output(KV.of(c.element().getKey(), topKStringPatterns));
                     }
                 }));
 
