@@ -6,11 +6,21 @@ import com.google.cloud.dataflow.sdk.options.DataflowPipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.runners.BlockingDataflowPipelineRunner;
-import com.google.cloud.dataflow.sdk.transforms.*;
+import com.google.cloud.dataflow.sdk.transforms.Count;
+import com.google.cloud.dataflow.sdk.transforms.DoFn;
+import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
+import com.google.cloud.dataflow.sdk.transforms.MapElements;
+import com.google.cloud.dataflow.sdk.transforms.ParDo;
+import com.google.cloud.dataflow.sdk.transforms.View;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 
 public class ParallelFPGrowth {
@@ -38,8 +48,7 @@ public class ParallelFPGrowth {
                 .apply("extractTransactionId_ProductIdPairs", MapElements.via(new TransactionIdAndProductIdPairsFn()))
                 .apply("assembleTransactions", GroupByKey.<String, Integer>create())
                 .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency))
-                .apply("generateGroupDependentTransactions", generateGroupDependentTransactions())
-                .apply("generateShards");
+                .apply("generateGroupDependentTransactions", generateGroupDependentTransactions());
 
 
         // for each transaction and each group output a KV <groupId, filteredTransaction>
@@ -50,8 +59,8 @@ public class ParallelFPGrowth {
 
     }
 
-    private static ParDo.Bound<List<Integer>, KV<Integer, List<Integer>>> generateGroupDependentTransactions() {
-        return ParDo.of(new DoFn<List<Integer>, KV<Integer, List<Integer>>>() {
+    private static ParDo.Bound<List<Integer>, GroupAndTransactionTree> generateGroupDependentTransactions() {
+        return ParDo.of(new DoFn<List<Integer>, GroupAndTransactionTree>() {
             @Override
             public void processElement(ProcessContext c) throws Exception {
                 List<Integer> transaction = c.element();
@@ -61,10 +70,10 @@ public class ParallelFPGrowth {
                     int groupId = getGroupId(productId);
 
                     if (!groups.contains(groupId)){
-                        List<Integer> groupDependentTransaction = transaction.subList(0,j + 1);
-                        final KV<Integer, List<Integer>> outputTransaction = KV.of(groupId, groupDependentTransaction);
-                        System.out.println(outputTransaction);
-                        c.output(outputTransaction);
+                        ArrayList<Integer> groupDependentTransaction = new ArrayList<Integer>(transaction.subList(0,j + 1));
+                        final GroupAndTransactionTree output = new GroupAndTransactionTree(groupId, new TransactionTree(groupDependentTransaction, 1L));
+                        System.out.println(output);
+                        c.output(output);
                     }
                     groups.add(groupId);
                 }
