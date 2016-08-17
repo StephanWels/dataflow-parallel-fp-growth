@@ -6,21 +6,14 @@ import com.google.cloud.dataflow.sdk.options.DataflowPipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.runners.BlockingDataflowPipelineRunner;
-import com.google.cloud.dataflow.sdk.transforms.Count;
-import com.google.cloud.dataflow.sdk.transforms.DoFn;
-import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
-import com.google.cloud.dataflow.sdk.transforms.MapElements;
-import com.google.cloud.dataflow.sdk.transforms.ParDo;
-import com.google.cloud.dataflow.sdk.transforms.View;
+import com.google.cloud.dataflow.sdk.transforms.*;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
+import com.stewel.dataflow.fpgrowth.CountDescendingPairComparator;
+import com.stewel.dataflow.fpgrowth.FPGrowthIds;
+import org.apache.commons.lang.mutable.MutableLong;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 
 public class ParallelFPGrowth {
@@ -30,6 +23,8 @@ public class ParallelFPGrowth {
     public static final String PROJECT_ID = "rewe-148055";
     public static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     public static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input/*";
+    public static final int MIN_SUPPORT = 1;
+    public static final int MAX_HEAP_SIZE = 10000;
 
     public static void main(final String... args) {
         // Read options from the command-line, check for required command-line arguments and validate argument values.
@@ -46,9 +41,43 @@ public class ParallelFPGrowth {
 
         pipeline.apply("readTransactionsInputFile", TextIO.Read.from(INPUT_BUCKET_LOCATION))
                 .apply("extractTransactionId_ProductIdPairs", MapElements.via(new TransactionIdAndProductIdPairsFn()))
-                .apply("assembleTransactions", GroupByKey.<String, Integer>create())
+                .apply("assembleTransactions", GroupByKey.create())
                 .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency))
-                .apply("generateGroupDependentTransactions", generateGroupDependentTransactions());
+                .apply("generateGroupDependentTransactions", generateGroupDependentTransactions())
+                .apply("groupByGroupId", GroupByKey.create())
+                .apply("generateFPTrees", ParDo.of(new DoFn<KV<Integer, Iterable<TransactionTree>>, String>() {
+                    @Override
+                    public void processElement(ProcessContext c) throws Exception {
+                        final int groupId = c.element().getKey();
+                        final Iterable<TransactionTree> transactionTrees = c.element().getValue();
+
+                        TransactionTree cTree = new TransactionTree();
+                        for (TransactionTree tr : transactionTrees) {
+                            for (ItemsListWithSupport p : tr) {
+                                cTree.addPattern(p.getKey(), p.getValue());
+                            }
+                        }
+                        System.out.println(cTree.toString());
+
+
+                        List<Pair<Integer,Long>> localFList = new ArrayList<>();
+                        for (Map.Entry<Integer,MutableLong> fItem : cTree.generateFList().entrySet()) {
+                            localFList.add(new Pair<>(fItem.getKey(), fItem.getValue().toLong()));
+                        }
+
+                        Collections.sort(localFList, new CountDescendingPairComparator<>());
+
+                        System.out.println(localFList);
+
+                        FPGrowthIds fpGrowth = new FPGrowthIds();
+                        fpGrowth.generateTopKFrequentPatterns(
+                                cTree.iterator(),
+                                freqList,
+                                MIN_SUPPORT,
+                                MAX_HEAP_SIZE,
+                                PFPGrowth.getGroupMembers(key.get(), maxPerGroup, numFeatures));
+                    }
+                }));
 
 
         // for each transaction and each group output a KV <groupId, filteredTransaction>
@@ -59,8 +88,8 @@ public class ParallelFPGrowth {
 
     }
 
-    private static ParDo.Bound<List<Integer>, GroupAndTransactionTree> generateGroupDependentTransactions() {
-        return ParDo.of(new DoFn<List<Integer>, GroupAndTransactionTree>() {
+    private static ParDo.Bound<List<Integer>, KV<Integer, TransactionTree>> generateGroupDependentTransactions() {
+        return ParDo.of(new DoFn<List<Integer>, KV<Integer, TransactionTree>>() {
             @Override
             public void processElement(ProcessContext c) throws Exception {
                 List<Integer> transaction = c.element();
@@ -69,9 +98,10 @@ public class ParallelFPGrowth {
                     int productId = transaction.get(j);
                     int groupId = getGroupId(productId);
 
-                    if (!groups.contains(groupId)){
-                        ArrayList<Integer> groupDependentTransaction = new ArrayList<Integer>(transaction.subList(0,j + 1));
-                        final GroupAndTransactionTree output = new GroupAndTransactionTree(groupId, new TransactionTree(groupDependentTransaction, 1L));
+                    if (!groups.contains(groupId)) {
+                        ArrayList<Integer> groupDependentTransaction = new ArrayList<Integer>(transaction.subList(0, j + 1));
+                        final KV<Integer, TransactionTree> output = KV.of(groupId, new TransactionTree(groupDependentTransaction, 1L));
+//                        final GroupAndTransactionTree output = new GroupAndTransactionTree(groupId, new TransactionTree(groupDependentTransaction, 1L));
                         System.out.println(output);
                         c.output(output);
                     }
