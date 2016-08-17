@@ -9,19 +9,24 @@ import com.google.cloud.dataflow.sdk.runners.BlockingDataflowPipelineRunner;
 import com.google.cloud.dataflow.sdk.transforms.*;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
-import com.stewel.dataflow.fpgrowth.CountDescendingPairComparator;
-import org.apache.commons.lang.mutable.MutableLong;
+import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
+import com.stewel.dataflow.fpgrowth.FPTreeConverter;
 
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 
 public class ParallelFPGrowth {
 
-    public static final int NUMBER_OF_GROUPS = 2;
+    public static final int NUMBER_OF_GROUPS = 1;
 
     public static final String PROJECT_ID = "rewe-148055";
     public static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     public static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input/*";
+    public static final int MINIMUM_SUPPORT = 3;
 
     public static void main(final String... args) {
         // Read options from the command-line, check for required command-line arguments and validate argument values.
@@ -42,7 +47,7 @@ public class ParallelFPGrowth {
                 .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency))
                 .apply("generateGroupDependentTransactions", generateGroupDependentTransactions())
                 .apply("groupByGroupId", GroupByKey.create())
-                .apply("generateFPTrees", ParDo.of(new DoFn<KV<Integer, Iterable<TransactionTree>>, String>() {
+                .apply("generateFPTrees", ParDo.withSideInputs(frequentItemsWithFrequency).of(new DoFn<KV<Integer, Iterable<TransactionTree>>, String>() {
                     @Override
                     public void processElement(ProcessContext c) throws Exception {
                         final int groupId = c.element().getKey();
@@ -56,15 +61,20 @@ public class ParallelFPGrowth {
                         }
                         System.out.println(cTree.toString());
 
+                        final AlgoFPGrowth algoFPGrowth = new AlgoFPGrowth();
+                        AtomicInteger transactionCount = new AtomicInteger();
 
-                        List<Pair<Integer, Long>> localFList = new ArrayList<>();
-                        for (Map.Entry<Integer, MutableLong> fItem : cTree.generateFList().entrySet()) {
-                            localFList.add(new Pair<>(fItem.getKey(), fItem.getValue().toLong()));
-                        }
+                        final Map<Integer, Integer> productFrequencies = c.sideInput(frequentItemsWithFrequency).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, k -> k.getValue().intValue()));
 
-                        Collections.sort(localFList, new CountDescendingPairComparator<>());
+                        cTree.iterator()
+                                .forEachRemaining(itemsListWithSupport -> {
+                                    transactionCount.incrementAndGet();
+                                });
 
-                        System.out.println(localFList);
+
+                        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
+                        algoFPGrowth.fpgrowth(FPTreeConverter.convertToSPMFModel(cTree, productFrequencies), new int[0], transactionCount.get(), productFrequencies, writer);
+                        writer.flush();
                     }
                 }));
 
@@ -111,10 +121,11 @@ public class ParallelFPGrowth {
             @Override
             public void processElement(ProcessContext c) {
                 final Map<Integer, Long> productFrequencies = c.sideInput(frequentItemsWithFrequency);
-                final Comparator<Integer> productFrequencyComparator = (o1, o2) -> Long.compare(productFrequencies.get(o1), productFrequencies.get(o2));
-                final List<Integer> productsInTransaction = new ArrayList<>();
+                final Comparator<Integer> productFrequencyComparator = (o1, o2) -> Long.compare(productFrequencies.getOrDefault(o1, 0L), productFrequencies.getOrDefault(o2, 0L));
+                List<Integer> productsInTransaction = new ArrayList<>();
                 c.element().getValue().iterator().forEachRemaining(productsInTransaction::add);
                 productsInTransaction.sort(productFrequencyComparator.reversed());
+                productsInTransaction = productsInTransaction.stream().filter(productFrequencies::containsKey).collect(Collectors.toList());
                 System.out.println(productsInTransaction);
                 c.output(productsInTransaction);
             }
@@ -125,10 +136,11 @@ public class ParallelFPGrowth {
         return ParDo.of(new DoFn<KV<Integer, Long>, KV<Integer, Long>>() {
             @Override
             public void processElement(ProcessContext c) throws Exception {
-                System.out.println("Item " + c.element().getKey() + " | Support " + c.element().getValue());
-                if (c.element().getValue() > 0) {
+                if (c.element().getValue() >= MINIMUM_SUPPORT) {
+                    System.out.println("Item " + c.element().getKey() + " | Support " + c.element().getValue());
                     c.output(c.element());
                 } else {
+                    System.out.println("Item " + c.element().getKey() + " | Support " + c.element().getValue() + " NOT FREQUENT.");
                 }
 
             }
