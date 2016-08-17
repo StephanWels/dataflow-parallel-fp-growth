@@ -10,7 +10,6 @@ import com.google.cloud.dataflow.sdk.transforms.*;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.stewel.dataflow.fpgrowth.CountDescendingPairComparator;
-import com.stewel.dataflow.fpgrowth.FPGrowthIds;
 import org.apache.commons.lang.mutable.MutableLong;
 
 import java.util.*;
@@ -23,8 +22,6 @@ public class ParallelFPGrowth {
     public static final String PROJECT_ID = "rewe-148055";
     public static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     public static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input/*";
-    public static final int MIN_SUPPORT = 1;
-    public static final int MAX_HEAP_SIZE = 10000;
 
     public static void main(final String... args) {
         // Read options from the command-line, check for required command-line arguments and validate argument values.
@@ -60,22 +57,14 @@ public class ParallelFPGrowth {
                         System.out.println(cTree.toString());
 
 
-                        List<Pair<Integer,Long>> localFList = new ArrayList<>();
-                        for (Map.Entry<Integer,MutableLong> fItem : cTree.generateFList().entrySet()) {
+                        List<Pair<Integer, Long>> localFList = new ArrayList<>();
+                        for (Map.Entry<Integer, MutableLong> fItem : cTree.generateFList().entrySet()) {
                             localFList.add(new Pair<>(fItem.getKey(), fItem.getValue().toLong()));
                         }
 
                         Collections.sort(localFList, new CountDescendingPairComparator<>());
 
                         System.out.println(localFList);
-
-                        FPGrowthIds fpGrowth = new FPGrowthIds();
-                        fpGrowth.generateTopKFrequentPatterns(
-                                cTree.iterator(),
-                                freqList,
-                                MIN_SUPPORT,
-                                MAX_HEAP_SIZE,
-                                PFPGrowth.getGroupMembers(key.get(), maxPerGroup, numFeatures));
                     }
                 }));
 
