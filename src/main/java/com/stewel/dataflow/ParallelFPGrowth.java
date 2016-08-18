@@ -6,26 +6,19 @@ import com.google.cloud.dataflow.sdk.options.DataflowPipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.runners.BlockingDataflowPipelineRunner;
-import com.google.cloud.dataflow.sdk.transforms.Count;
-import com.google.cloud.dataflow.sdk.transforms.DoFn;
-import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
-import com.google.cloud.dataflow.sdk.transforms.MapElements;
-import com.google.cloud.dataflow.sdk.transforms.ParDo;
-import com.google.cloud.dataflow.sdk.transforms.View;
+import com.google.cloud.dataflow.sdk.transforms.*;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
+import com.stewel.dataflow.assocrules.AlgoAgrawalFaster94;
+import com.stewel.dataflow.assocrules.AssocRules;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
+import com.stewel.dataflow.fpgrowth.Itemset;
+import com.stewel.dataflow.fpgrowth.Itemsets;
 
 import java.io.BufferedWriter;
 import java.io.OutputStreamWriter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -59,58 +52,23 @@ public class ParallelFPGrowth {
                 .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency))
                 .apply("generateGroupDependentTransactions", generateGroupDependentTransactions())
                 .apply("groupByGroupId", GroupByKey.create())
-                .apply("generateFPTrees", ParDo.withSideInputs(frequentItemsWithFrequency).of(new DoFn<KV<Integer, Iterable<TransactionTree>>, ItemsListWithSupport>() {
+                .apply("generateFPTrees", generateFPTrees(frequentItemsWithFrequency))
+                .apply("output_<productId,Pattern>_ForEachContainingProduct", outputThePatternForEachContainingProduct())
+                .apply("groupByProductId", GroupByKey.create())
+                .apply("selectTopKPattern", selectTopKPattern())
+                .apply("extractAssociationRules", ParDo.of(new DoFn<KV<Integer, TopKStringPatterns>, String>() {
                     @Override
                     public void processElement(ProcessContext c) throws Exception {
-                        final int groupId = c.element().getKey();
-                        final Iterable<TransactionTree> transactionTrees = c.element().getValue();
+                        final Itemsets patterns = new Itemsets("TOP K PATTERNS");
+                        c.element().getValue().getPatterns().stream()
+                                .map(itemsListWithSupport -> new Itemset(itemsListWithSupport.getKey(), itemsListWithSupport.getValue()))
+                                .forEach(patterns::addItemset);
 
-                        TransactionTree cTree = new TransactionTree();
-                        for (TransactionTree tr : transactionTrees) {
-                            for (ItemsListWithSupport p : tr) {
-                                cTree.addPattern(p.getKey(), p.getValue());
-                            }
-                        }
-                        System.out.println(cTree.toString());
+                        final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94();
 
-                        final AlgoFPGrowth algoFPGrowth = new AlgoFPGrowth();
-                        AtomicInteger transactionCount = new AtomicInteger();
-
-                        final Map<Integer, Integer> productFrequencies = c.sideInput(frequentItemsWithFrequency).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, k -> k.getValue().intValue()));
-
-                        cTree.iterator()
-                                .forEachRemaining(itemsListWithSupport -> {
-                                    transactionCount.incrementAndGet();
-                                });
-
-
-                        BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
-                        algoFPGrowth.fpgrowth(FPTreeConverter.convertToSPMFModel(cTree, productFrequencies), new int[0], transactionCount.get(), productFrequencies, writer, c);
-                        writer.flush();
-                    }
-                }))
-                .apply("mapForAggregating", ParDo.of(new DoFn<ItemsListWithSupport, KV<Integer, ItemsListWithSupport>>() {
-
-                    @Override
-                    public void processElement(ProcessContext c) throws Exception {
-                        ItemsListWithSupport patterns = c.element();
-                        for (Integer item : patterns.getKey()) {
-                            c.output(KV.of(item, patterns));
-                        }
-                    }
-                }))
-                .apply("groupByGroupId", GroupByKey.create())
-                .apply("reduceForAggregating", ParDo.of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, KV<Integer, TopKStringPatterns>>() {
-
-                    @Override
-                    public void processElement(ProcessContext c) throws Exception {
-                        System.out.println("input=" + c.element());
-                        TopKStringPatterns topKStringPatterns = new TopKStringPatterns();
-                        for(final ItemsListWithSupport pattern : c.element().getValue()) {
-                            topKStringPatterns = topKStringPatterns.merge(new TopKStringPatterns(Collections.singletonList(new ItemsListWithSupport(pattern.getKey(), pattern.getValue()))), DEFAULT_HEAP_SIZE);
-                        }
-                        System.out.println("merged=" + topKStringPatterns);
-                        c.output(KV.of(c.element().getKey(), topKStringPatterns));
+                        // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
+                        final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, 37, 0.01, 0.01);
+                        System.out.println(associationRules);
                     }
                 }));
 
@@ -121,6 +79,68 @@ public class ParallelFPGrowth {
 
         pipeline.run();
 
+    }
+
+    private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, KV<Integer, TopKStringPatterns>> selectTopKPattern() {
+        return ParDo.of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, KV<Integer, TopKStringPatterns>>() {
+
+            @Override
+            public void processElement(ProcessContext c) throws Exception {
+                System.out.println("input=" + c.element());
+                TopKStringPatterns topKStringPatterns = new TopKStringPatterns();
+                for (final ItemsListWithSupport pattern : c.element().getValue()) {
+                    topKStringPatterns = topKStringPatterns.merge(new TopKStringPatterns(Collections.singletonList(new ItemsListWithSupport(pattern.getKey(), pattern.getValue()))), DEFAULT_HEAP_SIZE);
+                }
+                System.out.println("merged=" + topKStringPatterns);
+                c.output(KV.of(c.element().getKey(), topKStringPatterns));
+            }
+        });
+    }
+
+    private static ParDo.Bound<ItemsListWithSupport, KV<Integer, ItemsListWithSupport>> outputThePatternForEachContainingProduct() {
+        return ParDo.of(new DoFn<ItemsListWithSupport, KV<Integer, ItemsListWithSupport>>() {
+
+            @Override
+            public void processElement(ProcessContext c) throws Exception {
+                ItemsListWithSupport patterns = c.element();
+                for (Integer item : patterns.getKey()) {
+                    c.output(KV.of(item, patterns));
+                }
+            }
+        });
+    }
+
+    private static ParDo.Bound<KV<Integer, Iterable<TransactionTree>>, ItemsListWithSupport> generateFPTrees(final PCollectionView<Map<Integer, Long>> frequentItemsWithFrequency) {
+        return ParDo.withSideInputs(frequentItemsWithFrequency).of(new DoFn<KV<Integer, Iterable<TransactionTree>>, ItemsListWithSupport>() {
+            @Override
+            public void processElement(ProcessContext c) throws Exception {
+                final int groupId = c.element().getKey();
+                final Iterable<TransactionTree> transactionTrees = c.element().getValue();
+
+                TransactionTree cTree = new TransactionTree();
+                for (TransactionTree tr : transactionTrees) {
+                    for (ItemsListWithSupport p : tr) {
+                        cTree.addPattern(p.getKey(), p.getValue());
+                    }
+                }
+                System.out.println(cTree.toString());
+
+                final AlgoFPGrowth algoFPGrowth = new AlgoFPGrowth();
+                AtomicInteger transactionCount = new AtomicInteger();
+
+                final Map<Integer, Integer> productFrequencies = c.sideInput(frequentItemsWithFrequency).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, k -> k.getValue().intValue()));
+
+                cTree.iterator()
+                        .forEachRemaining(itemsListWithSupport -> {
+                            transactionCount.incrementAndGet();
+                        });
+
+
+                BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
+                algoFPGrowth.fpgrowth(FPTreeConverter.convertToSPMFModel(cTree, productFrequencies), new int[0], transactionCount.get(), productFrequencies, writer, c);
+                writer.flush();
+            }
+        });
     }
 
     private static ParDo.Bound<List<Integer>, KV<Integer, TransactionTree>> generateGroupDependentTransactions() {

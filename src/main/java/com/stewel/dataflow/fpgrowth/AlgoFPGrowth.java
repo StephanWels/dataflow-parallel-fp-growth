@@ -408,7 +408,7 @@ public class AlgoFPGrowth {
             // found.
             Itemset itemsetObj = new Itemset(itemset);
             itemsetObj.setAbsoluteSupport(support);
-            patterns.addItemset(itemsetObj, itemsetObj.size());
+            patterns.addItemset(itemsetObj);
         }
     }
 
