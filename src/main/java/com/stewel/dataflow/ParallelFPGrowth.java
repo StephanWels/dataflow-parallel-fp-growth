@@ -56,21 +56,16 @@ public class ParallelFPGrowth {
                 .apply("output_<productId,Pattern>_ForEachContainingProduct", outputThePatternForEachContainingProduct())
                 .apply("groupByProductId", GroupByKey.create())
                 .apply("selectTopKPattern", selectTopKPattern())
-                .apply("extractAssociationRules", ParDo.of(new DoFn<KV<Integer, TopKStringPatterns>, String>() {
+                .apply("expandToAllSubPatterns", ParDo.of(new DoFn<KV<Integer, TopKStringPatterns>, KV<Integer, ItemsListWithSupport>>() {
                     @Override
                     public void processElement(ProcessContext c) throws Exception {
-                        final Itemsets patterns = new Itemsets("TOP K PATTERNS");
-                        c.element().getValue().getPatterns().stream()
-                                .map(itemsListWithSupport -> new Itemset(itemsListWithSupport.getKey(), itemsListWithSupport.getValue()))
-                                .forEach(patterns::addItemset);
-
-                        final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94();
-
-                        // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
-                        final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, 37, 0.01, 0.01);
-                        System.out.println(associationRules);
+                        final Integer productId = c.element().getKey();
+                        TopKStringPatterns patterns = c.element().getValue();
+                        patterns.getPatterns().forEach(pattern -> c.output(KV.of(productId, pattern)));
                     }
-                }));
+                }))
+                .apply("groupByProductId", GroupByKey.create())
+                .apply("extractAssociationRules", extractAssociationRules());
 
 
         // for each transaction and each group output a KV <groupId, filteredTransaction>
@@ -79,6 +74,23 @@ public class ParallelFPGrowth {
 
         pipeline.run();
 
+    }
+
+    private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, String> extractAssociationRules() {
+        return ParDo.of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, String>() {
+            @Override
+            public void processElement(ProcessContext c) throws Exception {
+                final Itemsets patterns = new Itemsets("TOP K PATTERNS");
+                c.element().getValue().forEach(itemsListWithSupport -> {
+                    patterns.addItemset(new Itemset(itemsListWithSupport.getKey(), itemsListWithSupport.getValue()));
+                });
+                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94();
+
+                // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
+                final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, 37, 0.01, 0.01);
+                System.out.println(associationRules);
+            }
+        });
     }
 
     private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, KV<Integer, TopKStringPatterns>> selectTopKPattern() {
@@ -134,7 +146,6 @@ public class ParallelFPGrowth {
                         .forEachRemaining(itemsListWithSupport -> {
                             transactionCount.incrementAndGet();
                         });
-
 
                 BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
                 algoFPGrowth.fpgrowth(FPTreeConverter.convertToSPMFModel(cTree, productFrequencies), new int[0], transactionCount.get(), productFrequencies, writer, c);
