@@ -16,6 +16,9 @@ package com.stewel.dataflow.assocrules;
 * SPMF. If not, see <http://www.gnu.org/licenses/>.
 */
 
+import com.stewel.dataflow.fpgrowth.Itemset;
+import com.stewel.dataflow.fpgrowth.Itemsets;
+
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -25,27 +28,25 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import com.stewel.dataflow.fpgrowth.Itemset;
-import com.stewel.dataflow.fpgrowth.Itemsets;
-
 /**
  * This is an implementation of the "faster algorithm" for generating association rules,
  * described in Agrawal &
  * al. 1994, IBM Research Report RJ9839, June 1994.
  * <br/><br/>
- *
+ * <p>
  * This implementation saves the result to a file
  * or can alternatively keep it into memory if no output
  * path is provided by the user when the runAlgorithm()
  * method is called.
  *
- *  @see   AssocRule
- *  @see   AssocRules
- *  @author Philippe Fournier-Viger
+ * @author Philippe Fournier-Viger
+ * @see AssocRule
+ * @see AssocRules
  **/
 
 public class AlgoAgrawalFaster94 {
 
+    private final SupportRepository supportRepository;
     // the frequent itemsets that will be used to generate the rules
     private Itemsets patterns;
 
@@ -70,17 +71,18 @@ public class AlgoAgrawalFaster94 {
     /**
      * Default constructor
      */
-    public AlgoAgrawalFaster94(){
-
+    public AlgoAgrawalFaster94(final SupportRepository supportRepository) {
+        this.supportRepository = supportRepository;
     }
 
     /**
      * Run the algorithm
-     * @param patterns  a set of frequent itemsets
-     * @param output an output file path for writing the result or null if the user want this method to return the result
-     * @param databaseSize  the number of transactions in the database
-     * @param minconf  the minconf threshold
-     * @return  the set of association rules if the user wished to save them into memory
+     *
+     * @param patterns     a set of frequent itemsets
+     * @param output       an output file path for writing the result or null if the user want this method to return the result
+     * @param databaseSize the number of transactions in the database
+     * @param minconf      the minconf threshold
+     * @return the set of association rules if the user wished to save them into memory
      * @throws IOException exception if error writing to the output file
      */
     public AssocRules runAlgorithm(Itemsets patterns, String output, int databaseSize, double minconf) throws IOException {
@@ -95,12 +97,13 @@ public class AlgoAgrawalFaster94 {
 
     /**
      * Run the algorithm
-     * @param patterns  a set of frequent itemsets
-     * @param output an output file path for writing the result or null if the user want this method to return the result
-     * @param databaseSize  the number of transactions in the database
-     * @param minconf  the minconf threshold
-     * @param minlift  the minlift threshold
-     * @return  the set of association rules if the user wished to save them into memory
+     *
+     * @param patterns     a set of frequent itemsets
+     * @param output       an output file path for writing the result or null if the user want this method to return the result
+     * @param databaseSize the number of transactions in the database
+     * @param minconf      the minconf threshold
+     * @param minlift      the minlift threshold
+     * @return the set of association rules if the user wished to save them into memory
      * @throws IOException exception if error writing to the output file
      */
     public AssocRules runAlgorithm(Itemsets patterns, String output, int databaseSize, double minconf,
@@ -116,9 +119,10 @@ public class AlgoAgrawalFaster94 {
 
     /**
      * Run the algorithm for generating association rules from a set of itemsets.
-     * @param patterns the set of itemsets
-     * @param output the output file path. If null the result is saved in memory and returned by the method.
-     * @param databaseSize  the number of transactions in the original database
+     *
+     * @param patterns     the set of itemsets
+     * @param output       the output file path. If null the result is saved in memory and returned by the method.
+     * @param databaseSize the number of transactions in the original database
      * @return the set of rules found if the user chose to save the result to memory
      * @throws IOException exception if error while writting to file
      */
@@ -126,10 +130,10 @@ public class AlgoAgrawalFaster94 {
             throws IOException {
 
         // if the user want to keep the result into memory
-        if(output == null){
+        if (output == null) {
             writer = null;
-            rules =  new AssocRules("ASSOCIATION RULES");
-        }else{
+            rules = new AssocRules("ASSOCIATION RULES");
+        } else {
             // if the user want to save the result to a file
             rules = null;
             writer = new BufferedWriter(new FileWriter(output));
@@ -154,7 +158,7 @@ public class AlgoAgrawalFaster94 {
         //    lexical order to avoid comparisons (in the method "generateCandidates()").
 
         // For itemsets of the same size
-        for(List<Itemset> itemsetsSameSize : patterns.getLevels()){
+        for (List<Itemset> itemsetsSameSize : patterns.getLevels()) {
             // Sort by lexicographical order using a Comparator
             Collections.sort(itemsetsSameSize, new Comparator<Itemset>() {
                 @Override
@@ -176,8 +180,8 @@ public class AlgoAgrawalFaster94 {
                 List<int[]> H1_for_recursion = new ArrayList<int[]>();
 
                 // For each itemset "itemsetSize1" of size 1 that is member of lk
-                for(int item : lk.getItems()) {
-                    int itemsetHm_P_1[] = new int[] {item};
+                for (int item : lk.getItems()) {
+                    int itemsetHm_P_1[] = new int[]{item};
 
                     // make a copy of  lk without items from  hm_P_1
                     int[] itemset_Lk_minus_hm_P_1 = ArraysAlgos.cloneItemSetMinusOneItem(lk.getItems(), item);
@@ -192,7 +196,7 @@ public class AlgoAgrawalFaster94 {
                     double conf = lk.getAbsoluteSupport() / supportAsDouble;
 
                     // if the confidence is lower than minconf
-                    if(conf < minconf || Double.isInfinite(conf)){
+                    if (conf < minconf || Double.isInfinite(conf)) {
                         continue;
                     }
 
@@ -200,17 +204,17 @@ public class AlgoAgrawalFaster94 {
                     int supportHm_P_1 = 0;
                     // if the user is using the minlift threshold, we will need
                     // to also calculate the lift of the rule:  itemset_Lk_minus_hm_P_1 ==>  hm_P_1
-                    if(usingLift){
+                    if (usingLift) {
                         // if we want to calculate the lift, we need the support of hm_P_1
                         supportHm_P_1 = calculateSupport(itemsetHm_P_1);  // if we want to calculate the lift, we need to add this.
                         // calculate the lift
-                        double term1 = ((double)lk.getAbsoluteSupport()) /databaseSize;
-                        double term2 = supportAsDouble /databaseSize;
-                        double term3 = ((double)supportHm_P_1 / databaseSize);
+                        double term1 = ((double) lk.getAbsoluteSupport()) / databaseSize;
+                        double term2 = supportAsDouble / databaseSize;
+                        double term3 = ((double) supportHm_P_1 / databaseSize);
                         lift = term1 / (term2 * term3);
 
                         // if the lift is not enough
-                        if(lift < minlift){
+                        if (lift < minlift) {
                             continue;
                         }
                     }
@@ -230,7 +234,7 @@ public class AlgoAgrawalFaster94 {
         }
 
         // close the file if we saved the result to a file
-        if(writer != null){
+        if (writer != null) {
             writer.close();
         }
         // record the end time of the algorithm execution
@@ -244,8 +248,9 @@ public class AlgoAgrawalFaster94 {
     /**
      * The ApGenRules as described in p.14 of the paper by Agrawal.
      * (see the Agrawal paper for more details).
-     * @param k the size of the first itemset used to generate rules
-     * @param m the recursive depth of the call to this method (first time 1, then 2...)
+     *
+     * @param k  the size of the first itemset used to generate rules
+     * @param m  the recursive depth of the call to this method (first time 1, then 2...)
      * @param lk the itemset that is used to generate rules
      * @param Hm a set of itemsets that can be used with lk to generate rules
      * @throws IOException exception if error while writing output file
@@ -265,20 +270,20 @@ public class AlgoAgrawalFaster94 {
             for (int[] hm_P_1 : Hm_plus_1) {
 
                 // We subtract the candidate from the itemset "lk"
-                int[] itemset_Lk_minus_hm_P_1 =  ArraysAlgos.cloneItemSetMinusAnItemset(lk.getItems(), hm_P_1);
+                int[] itemset_Lk_minus_hm_P_1 = ArraysAlgos.cloneItemSetMinusAnItemset(lk.getItems(), hm_P_1);
 
                 // We will now calculate the support of the rule  Lk/(hm_P_1) ==> hm_P_1
                 // we need it to calculate the confidence
                 int support = calculateSupport(itemset_Lk_minus_hm_P_1);
 
-                double supportAsDouble = (double)support;
+                double supportAsDouble = (double) support;
 
                 // calculate the confidence of the rule Lk/(hm_P_1) ==> hm_P_1
                 double conf = lk.getAbsoluteSupport() / supportAsDouble;
 
                 // if the confidence is not enough than we don't need to consider
                 // the rule  Lk/(hm_P_1) ==> hm_P_1 anymore so we continue
-                if(conf < minconf || Double.isInfinite(conf)){
+                if (conf < minconf || Double.isInfinite(conf)) {
                     continue;
                 }
 
@@ -286,17 +291,17 @@ public class AlgoAgrawalFaster94 {
                 int supportHm_P_1 = 0;
                 // if the user is using the minlift threshold, then we will need to calculate the lift of the
                 // rule as well and check if the lift is higher or equal to minlift.
-                if(usingLift){
+                if (usingLift) {
                     // if we want to calculate the lift, we need the support of Hm+1
                     supportHm_P_1 = calculateSupport(hm_P_1);
                     // calculate the lift of the rule:  Lk/(hm_P_1) ==> hm_P_1
-                    double term1 = ((double)lk.getAbsoluteSupport()) /databaseSize;
-                    double term2 = (supportAsDouble) /databaseSize;
+                    double term1 = ((double) lk.getAbsoluteSupport()) / databaseSize;
+                    double term2 = (supportAsDouble) / databaseSize;
 
-                    lift = term1 / (term2 * ((double)supportHm_P_1 / databaseSize));
+                    lift = term1 / (term2 * ((double) supportHm_P_1 / databaseSize));
 
                     // if the lift is not enough
-                    if(lift < minlift){
+                    if (lift < minlift) {
                         continue;
                     }
                 }
@@ -306,7 +311,7 @@ public class AlgoAgrawalFaster94 {
                 saveRule(itemset_Lk_minus_hm_P_1, support, hm_P_1, supportHm_P_1, lk.getAbsoluteSupport(), conf, lift);
 
                 // if k == m+1, then we cannot explore further rules using Lk since Lk will be too small.
-                if(k != m+1) {
+                if (k != m + 1) {
                     Hm_plus_1_for_recursion.add(hm_P_1);
                 }
             }
@@ -332,28 +337,21 @@ public class AlgoAgrawalFaster94 {
         int first = 0;
         int last = patternsSameSize.size() - 1;
 
-        while( first <= last )
-        {
-            int middle = ( first + last ) >>1 ; // >>1 means to divide by 2
+        while (first <= last) {
+            int middle = (first + last) >> 1; // >>1 means to divide by 2
             int[] itemsetMiddle = patternsSameSize.get(middle).getItems();
 
             int comparison = ArraysAlgos.comparatorItemsetSameSize.compare(itemset, itemsetMiddle);
-            if(comparison  > 0 ){
+            if (comparison > 0) {
                 first = middle + 1;  //  the itemset compared is larger than the subset according to the lexical order
-            }
-            else if(comparison  < 0 ){
+            } else if (comparison < 0) {
                 last = middle - 1; //  the itemset compared is smaller than the subset  is smaller according to the lexical order
-            }
-            else{
+            } else {
                 // we have found the itemset, so we return its support.
                 return patternsSameSize.get(middle).getAbsoluteSupport();
             }
         }
-        // The following line will not happen because in the context of this algorithm, we will
-        // always search for itemsets that are frequent and thus will be in the list of patterns.
-        // We just put the following line to avoid compilation error and detect if the error if this
-        // case was ever to happen.
-        throw new RuntimeException("INVALID SUPPORT - THIS SHOULD NOT HAPPEN BECAUSE ALL ITEMSETS HAVE TO BE FREQUENT");
+        return (int) supportRepository.getSupport(itemset);
     }
 
     /**
@@ -363,7 +361,7 @@ public class AlgoAgrawalFaster94 {
      * Note that this method is very optimized. It assumed that the list of
      * itemsets received as parameter are lexically ordered.
      *
-     * @param levelK_1  a set of itemsets of size k-1
+     * @param levelK_1 a set of itemsets of size k-1
      * @return a set of candidates
      */
     protected List<int[]> generateCandidateSizeK(List<int[]> levelK_1) {
@@ -371,9 +369,11 @@ public class AlgoAgrawalFaster94 {
         List<int[]> candidates = new ArrayList<int[]>();
 
         // For each itemset I1 and I2 of level k-1
-        loop1: for (int i = 0; i < levelK_1.size(); i++) {
+        loop1:
+        for (int i = 0; i < levelK_1.size(); i++) {
             int[] itemset1 = levelK_1.get(i);
-            loop2: for (int j = i + 1; j < levelK_1.size(); j++) {
+            loop2:
+            for (int j = i + 1; j < levelK_1.size(); j++) {
                 int[] itemset2 = levelK_1.get(j);
 
                 // we compare items of itemset1 and itemset2.
@@ -401,18 +401,18 @@ public class AlgoAgrawalFaster94 {
                 }
 
                 // Create a new candidate by combining itemset1 and itemset2
-                int lastItem1 =  itemset1[itemset1.length -1];
-                int lastItem2 =  itemset2[itemset2.length -1];
+                int lastItem1 = itemset1[itemset1.length - 1];
+                int lastItem2 = itemset2[itemset2.length - 1];
                 int newItemset[];
-                if(lastItem1 < lastItem2) {
+                if (lastItem1 < lastItem2) {
                     // Create a new candidate by combining itemset1 and itemset2
-                    newItemset = new int[itemset1.length+1];
+                    newItemset = new int[itemset1.length + 1];
                     System.arraycopy(itemset1, 0, newItemset, 0, itemset1.length);
                     newItemset[itemset1.length] = lastItem2;
                     candidates.add(newItemset);
-                }else {
+                } else {
                     // Create a new candidate by combining itemset1 and itemset2
-                    newItemset  = new int[itemset1.length+1];
+                    newItemset = new int[itemset1.length + 1];
                     System.arraycopy(itemset2, 0, newItemset, 0, itemset2.length);
                     newItemset[itemset2.length] = lastItem1;
                     candidates.add(newItemset);
@@ -423,7 +423,6 @@ public class AlgoAgrawalFaster94 {
         // return the set of candidates
         return candidates;
     }
-
 
 
     /**
@@ -439,13 +438,14 @@ public class AlgoAgrawalFaster94 {
     /**
      * Save a rule to the output file or in memory depending
      * if the user has provided an output file path or not
-     * @param itemset1  left itemset of the rule
+     *
+     * @param itemset1        left itemset of the rule
      * @param supportItemset1 the support of itemset1 if known
-     * @param itemset2  right itemset of the rule
+     * @param itemset2        right itemset of the rule
      * @param supportItemset2 the support of itemset2 if known
      * @param absoluteSupport support of the rule
-     * @param conf confidence of the rule
-     * @param lift lift of the rule
+     * @param conf            confidence of the rule
+     * @param lift            lift of the rule
      * @throws IOException exception if error writing the output file
      */
     protected void saveRule(int[] itemset1, int supportItemset1, int[] itemset2, int supportItemset2,
@@ -453,7 +453,7 @@ public class AlgoAgrawalFaster94 {
         ruleCount++;
 
         // if the result should be saved to a file
-        if(writer != null){
+        if (writer != null) {
             StringBuffer buffer = new StringBuffer();
             // write itemset 1
             for (int i = 0; i < itemset1.length; i++) {
@@ -479,7 +479,7 @@ public class AlgoAgrawalFaster94 {
             buffer.append(" #CONF: ");
             // write confidence
             buffer.append(doubleToString(conf));
-            if(usingLift){
+            if (usingLift) {
                 buffer.append(" #LIFT: ");
                 buffer.append(doubleToString(lift));
             }
@@ -487,7 +487,7 @@ public class AlgoAgrawalFaster94 {
             writer.write(buffer.toString());
             writer.newLine();
         }// otherwise the result is kept into memory
-        else{
+        else {
             rules.addRule(new AssocRule(itemset1, itemset2, supportItemset1, absoluteSupport, conf, lift));
         }
     }
@@ -495,7 +495,8 @@ public class AlgoAgrawalFaster94 {
 
     /**
      * Convert a double value to a string with only five decimal
-     * @param value  a double value
+     *
+     * @param value a double value
      * @return a string
      */
     String doubleToString(double value) {

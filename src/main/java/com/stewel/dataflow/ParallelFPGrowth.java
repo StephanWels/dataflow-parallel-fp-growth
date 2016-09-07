@@ -2,7 +2,6 @@ package com.stewel.dataflow;
 
 import com.google.cloud.bigtable.dataflow.CloudBigtableIO;
 import com.google.cloud.bigtable.dataflow.CloudBigtableScanConfiguration;
-import com.google.cloud.bigtable.hbase.BigtableConfiguration;
 import com.google.cloud.dataflow.sdk.Pipeline;
 import com.google.cloud.dataflow.sdk.io.TextIO;
 import com.google.cloud.dataflow.sdk.options.DataflowPipelineOptions;
@@ -15,12 +14,13 @@ import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.stewel.dataflow.assocrules.AlgoAgrawalFaster94;
 import com.stewel.dataflow.assocrules.AssocRules;
+import com.stewel.dataflow.assocrules.SupportRepository;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
 import com.stewel.dataflow.fpgrowth.Itemset;
 import com.stewel.dataflow.fpgrowth.Itemsets;
-import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.client.Mutation;
+import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.util.Bytes;
 
 import java.io.BufferedWriter;
@@ -34,17 +34,19 @@ public class ParallelFPGrowth {
 
     public static final int NUMBER_OF_GROUPS = 1;
 
-    public static final String PROJECT_ID = "rewe-148055";
-    public static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
-    public static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input/*";
-    public static final int MINIMUM_SUPPORT = 3;
-    public static final int DEFAULT_HEAP_SIZE = 50;
-    public static final String BIGTABLE_INSTANCE_ID = "parallel-fpgrowth-itemsets";
-    public static final String BIGTABLE_TABLE_ID = "itemsets";
-    public static final byte[] BIG_TABLE_FAMILY = "support".getBytes();
-    public static final byte[] BIG_TABLE_QUALIFIER = "item".getBytes();
-    public static final byte[] BIG_TABLE_QUALIFIER_PATTERN = "pattern".getBytes();
-    public static final byte[] VALUE = "1".getBytes();
+    protected static final String PROJECT_ID = "rewe-148055";
+    protected static final String DATASET_SIZE = "-1000000";
+    protected static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
+    protected static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input" + DATASET_SIZE + "/*";
+    protected static final String OUTPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/output" + DATASET_SIZE + "/*";
+    protected static final int MINIMUM_SUPPORT = 3;
+    protected static final int DEFAULT_HEAP_SIZE = 50;
+    protected static final String BIGTABLE_INSTANCE_ID = "parallel-fpgrowth-itemsets";
+    protected static final String BIGTABLE_TABLE_ID = "itemsets";
+    protected static final byte[] BIG_TABLE_FAMILY = "support".getBytes();
+    protected static final byte[] BIG_TABLE_QUALIFIER = "item".getBytes();
+    protected static final byte[] BIG_TABLE_QUALIFIER_PATTERN = "pattern".getBytes();
+    protected static final byte[] VALUE = "1".getBytes();
 
     public static void main(final String... args) {
 
@@ -55,7 +57,8 @@ public class ParallelFPGrowth {
                 .build();
 
         // Read options from the command-line, check for required command-line arguments and validate argument values.
-        final PipelineOptions options = PipelineOptionsFactory.fromArgs(args).withValidation().create();
+        PipelineOptions options = PipelineOptionsFactory.fromArgs(args).withValidation().create();
+        options = runOnDataflowService(options);
         // Create the Pipeline with the specified options.
         final Pipeline pipeline = Pipeline.create(options);
 
@@ -67,21 +70,18 @@ public class ParallelFPGrowth {
                 .apply("countFrequencies", Count.<Integer, String>perKey())
                 .apply("filterForMinimumSupport", filterForMinimumSupport());
 
-//        frequentItems.apply("transformToBigTablePutCommands", ParDo.of(new DoFn<KV<Integer, Long>, Mutation>() {
-//            @Override
-//            public void processElement(ProcessContext c) throws Exception {
-//                final Long support = c.element().getValue();
-//                final Integer productId = c.element().getKey();
-//                final byte[] rowId = Bytes.toBytes(productId);
-//                final byte[] supportValue = Bytes.toBytes(support);
-//                Mutation putFrequentItem = new Put(rowId, System.currentTimeMillis()).addColumn(BIG_TABLE_FAMILY, BIG_TABLE_QUALIFIER, supportValue);
-//                c.output(putFrequentItem);
-//            }
-//        }))
-//                .apply(CloudBigtableIO.writeToTable(bigtableScanConfiguration));
-
-//        pipeline.apply(Read.from(CloudBigtableIO.read(bigtableScanConfiguration)))
-//                .apply(View.<Result>asList());
+        frequentItems.apply("transformToBigTablePutCommands", ParDo.of(new DoFn<KV<Integer, Long>, Mutation>() {
+            @Override
+            public void processElement(ProcessContext c) throws Exception {
+                final Long support = c.element().getValue();
+                final Integer productId = c.element().getKey();
+                final byte[] rowId = Bytes.toBytes(productId);
+                final byte[] supportValue = Bytes.toBytes(support);
+                Mutation putFrequentItem = new Put(rowId, System.currentTimeMillis()).addColumn(BIG_TABLE_FAMILY, BIG_TABLE_QUALIFIER, supportValue);
+                c.output(putFrequentItem);
+            }
+        }))
+                .apply(CloudBigtableIO.writeToTable(bigtableScanConfiguration));
 
         final PCollectionView<Map<Integer, Long>> frequentItemsWithFrequency = frequentItems.apply("supplyAsView", View.<Integer, Long>asMap());
 
@@ -98,7 +98,9 @@ public class ParallelFPGrowth {
             public void processElement(ProcessContext c) throws Exception {
                 final Long support = c.element().getValue();
                 final ItemsListWithSupport pattern = c.element();
-                final byte[] rowId = pattern.getKey().toString().getBytes();
+                final ArrayList<Integer> itemset = pattern.getKey();
+                Collections.sort(itemset);
+                final byte[] rowId = itemset.toString().getBytes();
                 final byte[] supportValue = Bytes.toBytes(support);
                 Mutation putFrequentItem = new Put(rowId, System.currentTimeMillis()).addColumn(BIG_TABLE_FAMILY, BIG_TABLE_QUALIFIER_PATTERN, supportValue);
                 c.output(putFrequentItem);
@@ -107,9 +109,7 @@ public class ParallelFPGrowth {
                 .apply(CloudBigtableIO.writeToTable(bigtableScanConfiguration));
 
 
-
-
-                frequentItemSetsWithSupport.apply("output_<productId,Pattern>_ForEachContainingProduct", outputThePatternForEachContainingProduct())
+        frequentItemSetsWithSupport.apply("output_<productId,Pattern>_ForEachContainingProduct", outputThePatternForEachContainingProduct())
                 .apply("groupByProductId", GroupByKey.create())
                 .apply("selectTopKPattern", selectTopKPattern())
                 .apply("expandToAllSubPatterns", ParDo.of(new DoFn<KV<Integer, TopKStringPatterns>, KV<Integer, ItemsListWithSupport>>() {
@@ -121,18 +121,13 @@ public class ParallelFPGrowth {
                     }
                 }))
                 .apply("groupByProductId", GroupByKey.create())
-                .apply("extractAssociationRules", extractAssociationRules(bigtableScanConfiguration))
-                .apply("SystemOut", systemOut());
-
-
-        // for each transaction and each group output a KV <groupId, filteredTransaction>
-        // combine PER KEY all transactions into local fp-trees
-        // aggregate local fp-trees
+                .apply("extractAssociationRules", extractAssociationRules())
+                .apply("writeToFile", TextIO.Write.to(OUTPUT_BUCKET_LOCATION));
 
         pipeline.run();
     }
 
-    private static ParDo.Bound<String, String> systemOut() {
+    private static ParDo.Bound<String, String> fileOutput() {
         return ParDo.of(new DoFn<String, String>() {
             @Override
             public void processElement(ProcessContext c) throws Exception {
@@ -142,34 +137,17 @@ public class ParallelFPGrowth {
     }
 
 
-    private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, String> extractAssociationRules(CloudBigtableScanConfiguration bigtableScanConfiguration) {
+    private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, String> extractAssociationRules() {
         return ParDo.of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, String>() {
+
             @Override
             public void processElement(ProcessContext c) throws Exception {
                 final Itemsets patterns = new Itemsets("TOP K PATTERNS");
-                // Create the Bigtable connection, use try-with-resources to make sure it gets closed
-                try (Connection connection = BigtableConfiguration.connect(PROJECT_ID, BIGTABLE_INSTANCE_ID)) {
-
-                    final Table table = connection.getTable(TableName.valueOf(BIGTABLE_TABLE_ID));
-
-                    // Now scan across all rows.
-                    Scan scan = new Scan();
-
-                    System.out.println("Scan for all greetings:");
-                    ResultScanner scanner = table.getScanner(scan);
-                    int i = 0;
-                    for (Result row : scanner) {
-                        List<Integer> pattern = parseStringToArrayList(Bytes.toString(row.getRow()));
-                        Long support = Bytes.toLong(row.getValue(BIG_TABLE_FAMILY, BIG_TABLE_QUALIFIER_PATTERN));
-                        System.out.println(pattern + " " + support);
-                        patterns.addItemset(new Itemset(new ArrayList<>(pattern), support));
-                    }
-                }
 
                 c.element().getValue().forEach(itemsListWithSupport -> {
                     patterns.addItemset(new Itemset(itemsListWithSupport.getKey(), itemsListWithSupport.getValue()));
                 });
-                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94();
+                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(SupportRepository.getInstance());
 
                 // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
                 final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, 37, 0.01, 0.01);
@@ -266,10 +244,12 @@ public class ParallelFPGrowth {
         });
     }
 
-    private static void runOnDataflowService(DataflowPipelineOptions options) {
-        options.setRunner(BlockingDataflowPipelineRunner.class);
-        options.setStagingLocation(STAGING_BUCKET_LOCATION);
-        options.setProject(PROJECT_ID);
+    private static DataflowPipelineOptions runOnDataflowService(PipelineOptions options) {
+        DataflowPipelineOptions dataflowOptions = options.as(DataflowPipelineOptions.class);
+        dataflowOptions.setRunner(BlockingDataflowPipelineRunner.class);
+        dataflowOptions.setStagingLocation(STAGING_BUCKET_LOCATION);
+        dataflowOptions.setProject(PROJECT_ID);
+        return dataflowOptions;
     }
 
     private static ParDo.Bound<KV<String, Iterable<Integer>>, List<Integer>> sortTransactionsBySupport(final PCollectionView<Map<Integer, Long>> frequentItemsWithFrequency) {
@@ -303,7 +283,7 @@ public class ParallelFPGrowth {
         });
     }
 
-
+    //TODO: distribute groupIds according to F-List
     private static int getGroupId(Integer productId) {
         return productId % NUMBER_OF_GROUPS;
     }
