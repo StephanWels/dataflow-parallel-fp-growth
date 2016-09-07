@@ -32,13 +32,13 @@ import java.util.stream.Collectors;
 
 public class ParallelFPGrowth {
 
-    public static final int NUMBER_OF_GROUPS = 1;
+    public static final int NUMBER_OF_GROUPS = 2;
 
     protected static final String PROJECT_ID = "rewe-148055";
     protected static final String DATASET_SIZE = "-1000000";
     protected static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     protected static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input" + DATASET_SIZE + "/*";
-    protected static final String OUTPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/output" + DATASET_SIZE + "/*";
+    protected static final String OUTPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/output" + DATASET_SIZE + "_groups-" + NUMBER_OF_GROUPS + "/*";
     protected static final int MINIMUM_SUPPORT = 3;
     protected static final int DEFAULT_HEAP_SIZE = 50;
     protected static final String BIGTABLE_INSTANCE_ID = "parallel-fpgrowth-itemsets";
