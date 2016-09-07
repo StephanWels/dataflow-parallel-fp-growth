@@ -37,16 +37,16 @@ public class ParallelFPGrowth {
     protected static final String PROJECT_ID = "rewe-148055";
     protected static final String DATASET_SIZE = "-1000000";
     protected static final int MINIMUM_SUPPORT = 500;
+    public static final int NUMBER_TRANSACTIONS = 51369;
+    protected static final int DEFAULT_HEAP_SIZE = 50;
     protected static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     protected static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input" + DATASET_SIZE + "/*";
-    protected static final String OUTPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/output" + DATASET_SIZE + "_groups-" + NUMBER_OF_GROUPS + "_minSupport-"+MINIMUM_SUPPORT+"/*";
-    protected static final int DEFAULT_HEAP_SIZE = 50;
+    protected static final String OUTPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/output" + DATASET_SIZE + "_groups-" + NUMBER_OF_GROUPS + "_minSupport-" + MINIMUM_SUPPORT + "/*";
     protected static final String BIGTABLE_INSTANCE_ID = "parallel-fpgrowth-itemsets";
     protected static final String BIGTABLE_TABLE_ID = "itemsets";
     protected static final byte[] BIG_TABLE_FAMILY = "support".getBytes();
     protected static final byte[] BIG_TABLE_QUALIFIER = "item".getBytes();
     protected static final byte[] BIG_TABLE_QUALIFIER_PATTERN = "pattern".getBytes();
-    protected static final byte[] VALUE = "1".getBytes();
 
     public static void main(final String... args) {
 
@@ -150,8 +150,8 @@ public class ParallelFPGrowth {
                 final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(SupportRepository.getInstance());
 
                 // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
-                final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, 37, 0.01, 0.01);
-                c.output("Item " + c.element().getKey() + '\t' + associationRules.toString(50));
+                final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, NUMBER_TRANSACTIONS, 0.01, 0.01);
+                c.output("Item " + c.element().getKey() + '\t' + associationRules.toString(NUMBER_TRANSACTIONS));
             }
         });
     }
