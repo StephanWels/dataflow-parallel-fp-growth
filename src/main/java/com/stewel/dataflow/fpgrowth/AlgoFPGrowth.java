@@ -49,7 +49,7 @@ public class AlgoFPGrowth {
     private int itemsetCount; // number of freq. itemsets found
 
     // parameter
-    public int relativeMinsupp = 3;// the relative minimum support
+    public final int relativeMinsupp;// the relative minimum support
 
     BufferedWriter writer = null; // object to write the output file
     DoFn.ProcessContext c;
@@ -62,120 +62,8 @@ public class AlgoFPGrowth {
     /**
      * Constructor
      */
-    public AlgoFPGrowth() {
-
-    }
-
-    /**
-     * Method to run the FPGRowth algorithm.
-     *
-     * @param input   the path to an input file containing a transaction database.
-     * @param output  the output file path for saving the result (if null, the result
-     *                will be returned by the method instead of being saved).
-     * @param minsupp the minimum support threshold.
-     * @return the result if no output file path is provided.
-     * @throws IOException exception if error reading or writing files
-     */
-    public Itemsets runAlgorithm(String input, String output, double minsupp) throws FileNotFoundException, IOException {
-        // record start time
-        startTimestamp = System.currentTimeMillis();
-        // number of itemsets found
-        itemsetCount = 0;
-
-        //initialize tool to record memory usage
-
-        // if the user want to keep the result into memory
-        if (output == null) {
-            writer = null;
-            patterns = new Itemsets("FREQUENT ITEMSETS");
-        } else { // if the user want to save the result to a file
-            patterns = null;
-            writer = new BufferedWriter(new FileWriter(output));
-        }
-
-        // (1) PREPROCESSING: Initial database scan to determine the frequency of each item
-        // The frequency is stored in a map:
-        //    key: item   value: support
-        final Map<Integer, Integer> mapSupport = new HashMap<Integer, Integer>();
-
-        scanDatabaseToDetermineFrequencyOfSingleItems(input, mapSupport);
-
-        // convert the minimum support as percentage to a
-        // relative minimum support
-        this.relativeMinsupp = (int) Math.ceil(minsupp * transactionCount);
-
-        // (2) Scan the database again to build the initial FP-Tree
-        // Before inserting a transaction in the FPTree, we sort the items
-        // by descending order of support.  We ignore items that
-        // do not have the minimum support.
-        FPTree tree = new FPTree();
-
-        // read the file
-        BufferedReader reader = new BufferedReader(new FileReader(input));
-        String line;
-        // for each line (transaction) until the end of the file
-        while (((line = reader.readLine()) != null)) {
-            // if the line is  a comment, is  empty or is a
-            // kind of metadata
-            if (line.isEmpty() == true ||
-                    line.charAt(0) == '#' || line.charAt(0) == '%'
-                    || line.charAt(0) == '@') {
-                continue;
-            }
-
-            String[] lineSplited = line.split(" ");
-//			Set<Integer> alreadySeen = new HashSet<Integer>();
-            List<Integer> transaction = new ArrayList<Integer>();
-            // for each item in the transaction
-            for (String itemString : lineSplited) {
-                Integer item = Integer.parseInt(itemString);
-                // only add items that have the minimum support
-                if ( //alreadySeen.contains(item)  == false  &&
-                        mapSupport.get(item) >= relativeMinsupp) {
-                    transaction.add(item);
-                    //alreadySeen.add(item);
-                }
-            }
-            // sort item in the transaction by descending order of support
-            Collections.sort(transaction, new Comparator<Integer>() {
-                public int compare(Integer item1, Integer item2) {
-                    // compare the frequency
-                    int compare = mapSupport.get(item2) - mapSupport.get(item1);
-                    // if the same frequency, we check the lexical ordering!
-                    if (compare == 0) {
-                        return (item1 - item2);
-                    }
-                    // otherwise, just use the frequency
-                    return compare;
-                }
-            });
-            // add the sorted transaction to the fptree.
-            tree.addTransaction(transaction);
-        }
-        // close the input file
-        reader.close();
-
-
-        // We create the header table for the tree
-        tree.createHeaderList(mapSupport);
-
-        // (5) We start to mine the FP-Tree by calling the recursive method.
-        // Initially, the prefix alpha is empty.
-        int[] prefixAlpha = new int[0];
-        // if at least an item is frequent
-        if (tree.headerList.size() > 0) {
-            fpgrowth(tree, prefixAlpha, transactionCount, mapSupport, writer, c);
-        }
-
-        // close the output file if the result was saved to a file
-        if (writer != null) {
-            writer.close();
-        }
-        // record the execution end time
-        endTime = System.currentTimeMillis();
-
-        // return the result (if saved to memory)
-        return patterns;
+    public AlgoFPGrowth(final int minimumSupport) {
+        this.relativeMinsupp = minimumSupport;
     }
 
     /**

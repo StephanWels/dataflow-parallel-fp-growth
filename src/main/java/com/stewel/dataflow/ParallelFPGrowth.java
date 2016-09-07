@@ -36,10 +36,10 @@ public class ParallelFPGrowth {
 
     protected static final String PROJECT_ID = "rewe-148055";
     protected static final String DATASET_SIZE = "-1000000";
+    protected static final int MINIMUM_SUPPORT = 500;
     protected static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     protected static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input" + DATASET_SIZE + "/*";
-    protected static final String OUTPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/output" + DATASET_SIZE + "_groups-" + NUMBER_OF_GROUPS + "/*";
-    protected static final int MINIMUM_SUPPORT = 3;
+    protected static final String OUTPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/output" + DATASET_SIZE + "_groups-" + NUMBER_OF_GROUPS + "_minSupport-"+MINIMUM_SUPPORT+"/*";
     protected static final int DEFAULT_HEAP_SIZE = 50;
     protected static final String BIGTABLE_INSTANCE_ID = "parallel-fpgrowth-itemsets";
     protected static final String BIGTABLE_TABLE_ID = "itemsets";
@@ -205,7 +205,7 @@ public class ParallelFPGrowth {
                 }
                 System.out.println(cTree.toString());
 
-                final AlgoFPGrowth algoFPGrowth = new AlgoFPGrowth();
+                final AlgoFPGrowth algoFPGrowth = new AlgoFPGrowth(MINIMUM_SUPPORT);
                 AtomicInteger transactionCount = new AtomicInteger();
 
                 final Map<Integer, Integer> productFrequencies = c.sideInput(frequentItemsWithFrequency).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, k -> k.getValue().intValue()));
