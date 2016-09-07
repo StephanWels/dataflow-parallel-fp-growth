@@ -36,8 +36,8 @@ public class ParallelFPGrowth {
 
     protected static final String PROJECT_ID = "rewe-148055";
     protected static final String DATASET_SIZE = "-1000000";
-    protected static final int MINIMUM_SUPPORT = 500;
-    public static final int NUMBER_TRANSACTIONS = 51369;
+    protected static final int MINIMUM_SUPPORT = 500; //TODO: we should define a relative min support here
+    public static final int NUMBER_TRANSACTIONS = 51369; //TODO: we have to count this in a first step
     protected static final int DEFAULT_HEAP_SIZE = 50;
     protected static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     protected static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input" + DATASET_SIZE + "/*";
