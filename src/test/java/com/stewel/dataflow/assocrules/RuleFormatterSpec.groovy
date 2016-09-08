@@ -10,13 +10,14 @@ class RuleFormatterSpec extends Specification {
 
     def "Rule is printed nicely"() {
         given:
-        int[] antecedent = [1, 2]
-        int[] consequent = [3, 4]
-        def coverage = 30 // support of antecedent
-        def transactionCount = 40 // support
-        def confidence = 0.35123541915812
-        def lift = 4.129128401
-        Rule rule = new Rule(antecedent, consequent, coverage, transactionCount, confidence, lift)
+        AssociationRule rule = ImmutableAssociationRule.builder()
+                .antecedent(1, 2)
+                .consequent(3, 4)
+                .coverage(30)
+                .transactionCount(40)
+                .confidence(0.35123541915812)
+                .lift(4.129128401)
+                .build()
 
         expect:
         ruleFormatter.formatRule(rule) == "1,2 => 3,4 (support: 40, confidence: 0.35, lift: 4.13)"
