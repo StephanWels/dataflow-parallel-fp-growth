@@ -18,6 +18,7 @@ import com.stewel.dataflow.fpgrowth.FPTreeConverter;
 import com.stewel.dataflow.fpgrowth.Itemset;
 import com.stewel.dataflow.fpgrowth.Itemsets;
 import com.stewel.dataflow.functions.CategoryIdAndCategoryNamePairsFn;
+import com.stewel.dataflow.functions.FrequentItemSetToBigTablePutCommandFn;
 import com.stewel.dataflow.functions.ProductIdAndTransactionIdPairsFn;
 import com.stewel.dataflow.functions.TransactionIdAndProductIdPairsFn;
 import org.apache.hadoop.hbase.client.Mutation;
@@ -48,8 +49,8 @@ public class ParallelFPGrowth {
     protected static final String OUTPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/output" + DATASET_SIZE + "_groups-" + NUMBER_OF_GROUPS + "_minSupport-" + MINIMUM_SUPPORT + "/*";
     protected static final String BIGTABLE_INSTANCE_ID = "parallel-fpgrowth-itemsets";
     protected static final String BIGTABLE_TABLE_ID = "itemsets";
-    protected static final byte[] BIG_TABLE_FAMILY = "support".getBytes();
-    protected static final byte[] BIG_TABLE_QUALIFIER_PATTERN = "pattern".getBytes();
+    protected static final String BIG_TABLE_FAMILY = "support";
+    protected static final String BIG_TABLE_QUALIFIER_PATTERN = "pattern";
 
     public static void main(final String... args) {
         CloudBigtableScanConfiguration bigtableScanConfiguration = new CloudBigtableScanConfiguration.Builder()
@@ -93,7 +94,7 @@ public class ParallelFPGrowth {
                 .apply("groupByGroupId", GroupByKey.create())
                 .apply("generateFPTrees", generateFPTrees(frequentItemsWithFrequency, transactionCount));
 
-        frequentItemSetsWithSupport.apply("transformToBigTablePutCommands", transformToBigTablePutCommands())
+        frequentItemSetsWithSupport.apply("transformToBigTablePutCommands", MapElements.via(new FrequentItemSetToBigTablePutCommandFn(BIG_TABLE_FAMILY, BIG_TABLE_QUALIFIER_PATTERN)))
                 .apply(CloudBigtableIO.writeToTable(bigtableScanConfiguration));
 
 
@@ -118,23 +119,6 @@ public class ParallelFPGrowth {
             }
         });
     }
-
-    private static ParDo.Bound<ItemsListWithSupport, Mutation> transformToBigTablePutCommands() {
-        return ParDo.of(new DoFn<ItemsListWithSupport, Mutation>() {
-            @Override
-            public void processElement(ProcessContext c) throws Exception {
-                final Long support = c.element().getValue();
-                final ItemsListWithSupport pattern = c.element();
-                final ArrayList<Integer> itemset = pattern.getKey();
-                Collections.sort(itemset);
-                final byte[] rowId = itemset.toString().getBytes();
-                final byte[] supportValue = Bytes.toBytes(support);
-                Mutation putFrequentItem = new Put(rowId, System.currentTimeMillis()).addColumn(BIG_TABLE_FAMILY, BIG_TABLE_QUALIFIER_PATTERN, supportValue);
-                c.output(putFrequentItem);
-            }
-        });
-    }
-
 
     private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, String> extractAssociationRules(final PCollectionView<Long> transactionCount, PCollectionView<Map<Integer, String>> categoryNames) {
         return ParDo.withSideInputs(transactionCount, categoryNames).of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, String>() {

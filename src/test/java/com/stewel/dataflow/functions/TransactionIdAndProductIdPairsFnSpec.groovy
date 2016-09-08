@@ -9,7 +9,7 @@ class TransactionIdAndProductIdPairsFnSpec extends Specification {
     @Subject
     TransactionIdAndProductIdPairsFn fn = new TransactionIdAndProductIdPairsFn()
 
-    def 'extracts category id and name'() {
+    def 'extracts transaction id and product id'() {
         expect:
         fn.apply(input) == output
 
