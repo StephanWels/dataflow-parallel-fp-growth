@@ -170,12 +170,12 @@ public class ParallelFPGrowth {
 
             @Override
             public void processElement(ProcessContext c) throws Exception {
-                LOGGER.debug("input=" + c.element());
+                LOGGER.info("input=" + c.element());
                 TopKStringPatterns topKStringPatterns = new TopKStringPatterns();
                 for (final ItemsListWithSupport pattern : c.element().getValue()) {
                     topKStringPatterns = topKStringPatterns.merge(new TopKStringPatterns(Collections.singletonList(new ItemsListWithSupport(pattern.getKey(), pattern.getValue()))), DEFAULT_HEAP_SIZE);
                 }
-                LOGGER.debug("merged=" + topKStringPatterns);
+                LOGGER.info("merged=" + topKStringPatterns);
                 c.output(KV.of(c.element().getKey(), topKStringPatterns));
             }
         });
@@ -207,7 +207,7 @@ public class ParallelFPGrowth {
                         cTree.addPattern(p.getKey(), p.getValue());
                     }
                 }
-                LOGGER.debug(cTree.toString());
+                LOGGER.info(cTree.toString());
                 final long databaseSize = c.sideInput(transactionCount);
                 final AlgoFPGrowth algoFPGrowth = new AlgoFPGrowth(databaseSize, MINIMUM_SUPPORT);
                 AtomicInteger localFpTreeTransactionCount = new AtomicInteger();
@@ -220,6 +220,7 @@ public class ParallelFPGrowth {
                         });
 
                 algoFPGrowth.fpgrowth(FPTreeConverter.convertToSPMFModel(cTree, productFrequencies), new int[0], localFpTreeTransactionCount.get(), productFrequencies, c);
+                algoFPGrowth.printStats();
             }
         });
     }
@@ -273,7 +274,7 @@ public class ParallelFPGrowth {
             @Override
             public void processElement(ProcessContext c) throws Exception {
                 long databaseSize = c.sideInput(transactionCount);
-                long minimumAbsoluteSupport = Math.round(databaseSize * MINIMUM_SUPPORT);
+                long minimumAbsoluteSupport = (long)Math.ceil(databaseSize * MINIMUM_SUPPORT);
                 if (c.element().getValue() >= minimumAbsoluteSupport) {
                     LOGGER.trace("Item '{}' | Support '{}' FREQUENT.", c.element().getKey(), c.element().getValue());
                     c.output(c.element());

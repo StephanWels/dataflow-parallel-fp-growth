@@ -69,7 +69,7 @@ public class AlgoFPGrowth {
      * Constructor
      */
     public AlgoFPGrowth(final long databaseSize, final double minimumRelativeSupport) {
-        this.minimumSupport = Math.round(databaseSize * minimumRelativeSupport);
+        this.minimumSupport = (long) Math.ceil(databaseSize * minimumRelativeSupport);
     }
 
 
