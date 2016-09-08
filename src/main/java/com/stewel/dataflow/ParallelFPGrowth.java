@@ -26,8 +26,6 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedWriter;
-import java.io.OutputStreamWriter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -209,7 +207,7 @@ public class ParallelFPGrowth {
                         cTree.addPattern(p.getKey(), p.getValue());
                     }
                 }
-                System.out.println(cTree.toString());
+                LOGGER.debug(cTree.toString());
                 final long databaseSize = c.sideInput(transactionCount);
                 final AlgoFPGrowth algoFPGrowth = new AlgoFPGrowth(databaseSize, MINIMUM_SUPPORT);
                 AtomicInteger localFpTreeTransactionCount = new AtomicInteger();
