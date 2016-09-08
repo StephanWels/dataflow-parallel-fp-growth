@@ -13,6 +13,7 @@ import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.stewel.dataflow.assocrules.AlgoAgrawalFaster94;
+import com.stewel.dataflow.assocrules.AssocRule;
 import com.stewel.dataflow.assocrules.AssocRules;
 import com.stewel.dataflow.assocrules.SupportRepository;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
@@ -41,6 +42,8 @@ public class ParallelFPGrowth {
     protected static final String PROJECT_ID = "rewe-148055";
     protected static final String DATASET_SIZE = "-1000000";
     protected static final double MINIMUM_SUPPORT = 0.01;
+    protected static final double MINIMUM_CONFIDENCE = 0.05;
+    protected static final double MINIMUM_LIFT = 1.5;
     protected static final int DEFAULT_HEAP_SIZE = 50;
     protected static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     protected static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input" + DATASET_SIZE + "/*";
@@ -144,8 +147,22 @@ public class ParallelFPGrowth {
 
                 long numberTransactions = c.sideInput(transactionCount);
                 // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
-                final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, numberTransactions, 0.01, 0.01);
-                c.output("Item " + c.element().getKey() + '\t' + associationRules.toString(numberTransactions));
+                final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, numberTransactions, MINIMUM_CONFIDENCE, MINIMUM_LIFT);
+
+                final int productId = c.element().getKey();
+
+                final StringBuilder productAssociationRulesResult = new StringBuilder("Item " + c.element().getKey() + "\n");
+
+                associationRules.getRules().stream()
+                        .filter(rule -> Arrays.binarySearch(rule.getItemset1(), productId) >= 0)
+                        .sorted(new Comparator<AssocRule>() {
+                            @Override
+                            public int compare(AssocRule o1, AssocRule o2) {
+                                return Double.compare(o1.getLift(), o2.getLift());
+                            }
+                        }.reversed())
+                        .forEach(rule -> productAssociationRulesResult.append(rule.toString()).append("\n"));
+                c.output(productAssociationRulesResult.toString());
             }
         });
     }

@@ -59,14 +59,22 @@ public class AssocRule extends Rule {
         return lift;
     }
 
-    /**
-     * Print this rule to System.out.
-     */
-    public void print() {
-        System.out.println(toString());
-    }
-
     public double getConfidence() {
         return super.getConfidence();
+    }
+
+    public String toString(){
+        StringBuilder buffer = new StringBuilder();
+        buffer.append(super.toString());
+        buffer.append(" ");
+        buffer.append("support :  ");
+        buffer.append(getAbsoluteSupport());
+        buffer.append(" ");
+        buffer.append("confidence :  " );
+        buffer.append(getConfidence());
+        buffer.append(" ");
+        buffer.append("lift :  " );
+        buffer.append(getLift());
+        return buffer.toString();
     }
 }
