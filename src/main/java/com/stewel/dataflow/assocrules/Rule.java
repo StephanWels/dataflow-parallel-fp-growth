@@ -1,151 +1,83 @@
 package com.stewel.dataflow.assocrules;
 
-/* This file is copyright (c) 2008-2012 Philippe Fournier-Viger
-*
-* This file is part of the SPMF DATA MINING SOFTWARE
-* (http://www.philippe-fournier-viger.com/spmf).
-*
-* SPMF is free software: you can redistribute it and/or modify it under the
-* terms of the GNU General Public License as published by the Free Software
-* Foundation, either version 3 of the License, or (at your option) any later
-* version.
-* SPMF is distributed in the hope that it will be useful, but WITHOUT ANY
-* WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-* A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-* You should have received a copy of the GNU General Public License along with
-* SPMF. If not, see <http://www.gnu.org/licenses/>.
-*/
+import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.lang.builder.ReflectionToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
+
+import javax.annotation.Nonnull;
+import java.util.Arrays;
 
 /**
  * This class represent an association rule, where itemsets are arrays of integers.
- *
- * @author Philippe Fournier-Viger
  */
-public class Rule {
-    /**
-     * antecedent
-     */
-    private int[] itemset1;
-    /**
-     * consequent
-     */
-    private int[] itemset2;
-    /**
-     * coverage (support of the antecedent)
-     */
-    private int coverage;
-    /**
-     * relative support
-     */
-    private int transactionCount;
-    /**
-     * confidence of the rule
-     */
-    private double confidence;
+public final class Rule {
 
-    /**
-     * Constructor
-     *
-     * @param itemset1         the antecedent of the rule (an itemset)
-     * @param itemset2         the consequent of the rule (an itemset)
-     * @param coverage         the support of the antecedent as a number of transactions
-     * @param transactionCount the absolute support of the rule (integer - a number of transactions)
-     * @param confidence       the confidence of the rule
-     */
-    public Rule(int[] itemset1, int[] itemset2, int coverage,
-                int transactionCount, double confidence) {
-        this.itemset1 = itemset1;
-        this.itemset2 = itemset2;
+    private final int[] antecedent;
+    private final int[] consequent;
+    private final int coverage; // support of the antecedent
+    private final int transactionCount;
+    private final double confidence;
+    private final double lift;
+
+    public Rule(@Nonnull final int[] antecedent,
+                @Nonnull final int[] consequent,
+                final int coverage,
+                final int transactionCount,
+                final double confidence,
+                final double lift) {
+        this.antecedent = Arrays.copyOf(antecedent, antecedent.length);
+        this.consequent = Arrays.copyOf(consequent, consequent.length);
         this.coverage = coverage;
         this.transactionCount = transactionCount;
         this.confidence = confidence;
+        this.lift = lift;
     }
 
-    /**
-     * Get the relative support of the rule (percentage)
-     *
-     * @param databaseSize the number of transactions in the database where this rule was
-     *                     found.
-     * @return the support (double)
-     */
-    public double getRelativeSupport(long databaseSize) {
-        return ((double) transactionCount) / ((double) databaseSize);
+    public int[] getAntecedent() {
+        return antecedent;
     }
 
-    /**
-     * Get the absolute support of this rule (integer).
-     *
-     * @return the absolute support.
-     */
-    public int getAbsoluteSupport() {
-        return transactionCount;
+    public int[] getConsequent() {
+        return consequent;
     }
 
-    /**
-     * Get the confidence of this rule.
-     *
-     * @return the confidence
-     */
-    public double getConfidence() {
-        return confidence;
-    }
-
-    /**
-     * Get the coverage of the rule (the support of the rule antecedent) as a number of transactions
-     *
-     * @return the coverage (int)
-     */
     public int getCoverage() {
         return coverage;
     }
 
-
-    /**
-     * Print this rule to System.out.
-     */
-    public void print() {
-        System.out.println(toString());
+    public int getTransactionCount() {
+        return transactionCount;
     }
 
-    /**
-     * Return a String representation of this rule
-     *
-     * @return a String
-     */
-    public String toString() {
-        StringBuffer buffer = new StringBuffer();
-        // write itemset 1
-        for (int i = 0; i < itemset1.length; i++) {
-            buffer.append(itemset1[i]);
-            if (i != itemset1.length - 1) {
-                buffer.append(" ");
-            }
-        }
-        // write separator
-        buffer.append(" ==> ");
-        // write itemset 2
-        for (int i = 0; i < itemset2.length; i++) {
-            buffer.append(itemset2[i]);
-            buffer.append(" ");
-        }
-        return buffer.toString();
+    public double getConfidence() {
+        return confidence;
     }
 
-    /**
-     * Get the left itemset of this rule (antecedent).
-     *
-     * @return an itemset.
-     */
-    public int[] getItemset1() {
-        return itemset1;
+    public double getLift() {
+        return lift;
     }
 
-    /**
-     * Get the right itemset of this rule (consequent).
-     *
-     * @return an itemset.
-     */
-    public int[] getItemset2() {
-        return itemset2;
+    public int getAbsoluteSupport() {
+        return transactionCount;
+    }
+
+    public double getRelativeSupport(final long databaseSize) {
+        return ((double) transactionCount) / ((double) databaseSize);
+    }
+
+    @Override
+    public final boolean equals(final Object object) {
+        return EqualsBuilder.reflectionEquals(this, object);
+    }
+
+    @Override
+    public final int hashCode() {
+        return HashCodeBuilder.reflectionHashCode(this);
+    }
+
+    @Override
+    public final String toString() {
+        return ReflectionToStringBuilder.toString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

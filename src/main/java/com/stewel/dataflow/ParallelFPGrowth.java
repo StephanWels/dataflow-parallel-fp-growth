@@ -8,13 +8,18 @@ import com.google.cloud.dataflow.sdk.options.DataflowPipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.runners.BlockingDataflowPipelineRunner;
-import com.google.cloud.dataflow.sdk.transforms.*;
+import com.google.cloud.dataflow.sdk.transforms.Count;
+import com.google.cloud.dataflow.sdk.transforms.DoFn;
+import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
+import com.google.cloud.dataflow.sdk.transforms.MapElements;
+import com.google.cloud.dataflow.sdk.transforms.ParDo;
+import com.google.cloud.dataflow.sdk.transforms.View;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.stewel.dataflow.assocrules.AlgoAgrawalFaster94;
-import com.stewel.dataflow.assocrules.AssocRule;
 import com.stewel.dataflow.assocrules.AssocRules;
+import com.stewel.dataflow.assocrules.Rule;
 import com.stewel.dataflow.assocrules.SupportRepository;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
@@ -26,7 +31,14 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -152,10 +164,10 @@ public class ParallelFPGrowth {
                 final StringBuilder productAssociationRulesResult = new StringBuilder("Item " + c.element().getKey() + "\n");
 
                 associationRules.getRules().stream()
-                        .filter(rule -> Arrays.binarySearch(rule.getItemset1(), productId) >= 0)
-                        .sorted(new Comparator<AssocRule>() {
+                        .filter(rule -> Arrays.binarySearch(rule.getAntecedent(), productId) >= 0)
+                        .sorted(new Comparator<Rule>() {
                             @Override
-                            public int compare(AssocRule o1, AssocRule o2) {
+                            public int compare(Rule o1, Rule o2) {
                                 return Double.compare(o1.getLift(), o2.getLift());
                             }
                         }.reversed())
