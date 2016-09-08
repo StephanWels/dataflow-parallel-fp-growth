@@ -17,13 +17,7 @@ import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
 import com.stewel.dataflow.fpgrowth.Itemset;
 import com.stewel.dataflow.fpgrowth.Itemsets;
-import com.stewel.dataflow.functions.CategoryIdAndCategoryNamePairsFn;
-import com.stewel.dataflow.functions.FrequentItemSetToBigTablePutCommandFn;
-import com.stewel.dataflow.functions.ProductIdAndTransactionIdPairsFn;
-import com.stewel.dataflow.functions.TransactionIdAndProductIdPairsFn;
-import org.apache.hadoop.hbase.client.Mutation;
-import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.util.Bytes;
+import com.stewel.dataflow.functions.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -100,7 +94,7 @@ public class ParallelFPGrowth {
 
         frequentItemSetsWithSupport.apply("output_<productId,Pattern>_ForEachContainingProduct", outputThePatternForEachContainingProduct())
                 .apply("groupByProductId", GroupByKey.create())
-                .apply("selectTopKPattern", selectTopKPattern())
+                .apply("selectTopKPattern", MapElements.via(new SelectTopKPatternFn(DEFAULT_HEAP_SIZE)))
                 .apply("expandToAllSubPatterns", expandTopKStringPatternsToAllSubPatterns())
                 .apply("groupByProductId", GroupByKey.create())
                 .apply("extractAssociationRules", extractAssociationRules(transactionCount, categoryNames))
@@ -153,22 +147,6 @@ public class ParallelFPGrowth {
                         .map(ruleFormatter::formatRule)
                         .forEach(rule -> productAssociationRulesResult.append(rule).append("\n"));
                 c.output(productAssociationRulesResult.toString());
-            }
-        });
-    }
-
-    private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, KV<Integer, TopKStringPatterns>> selectTopKPattern() {
-        return ParDo.of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, KV<Integer, TopKStringPatterns>>() {
-
-            @Override
-            public void processElement(ProcessContext c) throws Exception {
-                LOGGER.info("input=" + c.element());
-                TopKStringPatterns topKStringPatterns = new TopKStringPatterns();
-                for (final ItemsListWithSupport pattern : c.element().getValue()) {
-                    topKStringPatterns = topKStringPatterns.merge(new TopKStringPatterns(Collections.singletonList(new ItemsListWithSupport(pattern.getKey(), pattern.getValue()))), DEFAULT_HEAP_SIZE);
-                }
-                LOGGER.info("merged=" + topKStringPatterns);
-                c.output(KV.of(c.element().getKey(), topKStringPatterns));
             }
         });
     }
