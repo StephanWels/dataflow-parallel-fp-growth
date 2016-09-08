@@ -142,7 +142,7 @@ public class ParallelFPGrowth {
 
                 long numberTransactions = c.sideInput(transactionCount);
                 // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
-                final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, numberTransactions, MINIMUM_CONFIDENCE, MINIMUM_LIFT);
+                final AssociationRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, numberTransactions, MINIMUM_CONFIDENCE, MINIMUM_LIFT);
 
                 final int productId = c.element().getKey();
 

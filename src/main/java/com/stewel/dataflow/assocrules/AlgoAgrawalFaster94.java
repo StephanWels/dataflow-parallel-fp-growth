@@ -52,7 +52,7 @@ public class AlgoAgrawalFaster94 {
 
     // variable used to store the result if the user choose to save
     // the result in memory rather than to an output file
-    protected AssocRules rules;
+    protected ImmutableAssociationRules.Builder rules;
 
     // object to write the output file if the user wish to write to a file
     protected BufferedWriter writer = null;
@@ -85,7 +85,7 @@ public class AlgoAgrawalFaster94 {
      * @return the set of association rules if the user wished to save them into memory
      * @throws IOException exception if error writing to the output file
      */
-    public AssocRules runAlgorithm(Itemsets patterns, String output, int databaseSize, double minconf) throws IOException {
+    public AssociationRules runAlgorithm(Itemsets patterns, String output, int databaseSize, double minconf) throws IOException {
         // save the parameters
         this.minconf = minconf;
         this.minlift = 0;
@@ -106,7 +106,7 @@ public class AlgoAgrawalFaster94 {
      * @return the set of association rules if the user wished to save them into memory
      * @throws IOException exception if error writing to the output file
      */
-    public AssocRules runAlgorithm(Itemsets patterns, String output, long databaseSize, double minconf,
+    public AssociationRules runAlgorithm(Itemsets patterns, String output, long databaseSize, double minconf,
                                    double minlift) throws IOException {
         // save the parameters
         this.minconf = minconf;
@@ -126,13 +126,13 @@ public class AlgoAgrawalFaster94 {
      * @return the set of rules found if the user chose to save the result to memory
      * @throws IOException exception if error while writting to file
      */
-    private AssocRules runAlgorithm(Itemsets patterns, String output, long databaseSize)
+    private AssociationRules runAlgorithm(Itemsets patterns, String output, long databaseSize)
             throws IOException {
 
         // if the user want to keep the result into memory
         if (output == null) {
             writer = null;
-            rules = new AssocRules("ASSOCIATION RULES");
+            rules = ImmutableAssociationRules.builder().name("ASSOCIATION RULES");
         } else {
             // if the user want to save the result to a file
             rules = null;
@@ -242,7 +242,7 @@ public class AlgoAgrawalFaster94 {
 
         // Return the rules found if the user chose to save the result to memory rather than a file.
         // Otherwise, null will be returned
-        return rules;
+        return rules.build();
     }
 
     /**
@@ -488,7 +488,7 @@ public class AlgoAgrawalFaster94 {
             writer.newLine();
         }// otherwise the result is kept into memory
         else {
-            rules.addRule(ImmutableAssociationRule.builder()
+            rules.addRules(ImmutableAssociationRule.builder()
                     .antecedent(itemset1)
                     .consequent(itemset2)
                     .coverage(supportItemset1)
