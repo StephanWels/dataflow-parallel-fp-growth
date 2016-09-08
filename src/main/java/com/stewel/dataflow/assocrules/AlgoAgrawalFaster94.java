@@ -488,7 +488,14 @@ public class AlgoAgrawalFaster94 {
             writer.newLine();
         }// otherwise the result is kept into memory
         else {
-            rules.addRule(new Rule(itemset1, itemset2, supportItemset1, absoluteSupport, conf, lift));
+            rules.addRule(ImmutableAssociationRule.builder()
+                    .antecedent(itemset1)
+                    .consequent(itemset2)
+                    .coverage(supportItemset1)
+                    .transactionCount(absoluteSupport)
+                    .confidence(conf)
+                    .lift(lift)
+                    .build());
         }
     }
 

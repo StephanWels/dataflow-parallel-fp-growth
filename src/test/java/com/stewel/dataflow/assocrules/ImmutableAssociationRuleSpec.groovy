@@ -12,10 +12,10 @@ import spock.lang.Specification
 
 import static org.mutabilitydetector.unittesting.MutabilityMatchers.areImmutable
 
-class RuleSpec extends Specification {
+class ImmutableAssociationRuleSpec extends Specification {
 
     def getClazz() {
-        Rule.class
+        ImmutableAssociationRule.class
     }
 
     def "fulfill immutable contract"() {

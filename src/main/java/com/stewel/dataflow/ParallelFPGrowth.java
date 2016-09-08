@@ -19,7 +19,7 @@ import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.stewel.dataflow.assocrules.AlgoAgrawalFaster94;
 import com.stewel.dataflow.assocrules.AssocRules;
-import com.stewel.dataflow.assocrules.Rule;
+import com.stewel.dataflow.assocrules.AssociationRule;
 import com.stewel.dataflow.assocrules.SupportRepository;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
@@ -165,9 +165,9 @@ public class ParallelFPGrowth {
 
                 associationRules.getRules().stream()
                         .filter(rule -> Arrays.binarySearch(rule.getAntecedent(), productId) >= 0)
-                        .sorted(new Comparator<Rule>() {
+                        .sorted(new Comparator<AssociationRule>() {
                             @Override
-                            public int compare(Rule o1, Rule o2) {
+                            public int compare(AssociationRule o1, AssociationRule o2) {
                                 return Double.compare(o1.getLift(), o2.getLift());
                             }
                         }.reversed())
