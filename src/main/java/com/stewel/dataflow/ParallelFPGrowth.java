@@ -8,12 +8,7 @@ import com.google.cloud.dataflow.sdk.options.DataflowPipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptions;
 import com.google.cloud.dataflow.sdk.options.PipelineOptionsFactory;
 import com.google.cloud.dataflow.sdk.runners.BlockingDataflowPipelineRunner;
-import com.google.cloud.dataflow.sdk.transforms.Count;
-import com.google.cloud.dataflow.sdk.transforms.DoFn;
-import com.google.cloud.dataflow.sdk.transforms.GroupByKey;
-import com.google.cloud.dataflow.sdk.transforms.MapElements;
-import com.google.cloud.dataflow.sdk.transforms.ParDo;
-import com.google.cloud.dataflow.sdk.transforms.View;
+import com.google.cloud.dataflow.sdk.transforms.*;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
@@ -28,14 +23,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -163,9 +151,9 @@ public class ParallelFPGrowth {
                 RuleFormatter ruleFormatter = new RuleFormatter();
                 associationRules.getRules().stream()
                         .filter(rule -> Arrays.binarySearch(rule.getAntecedent(), productId) >= 0)
-                        .sorted(new Comparator<Rule>() {
+                        .sorted(new Comparator<AssociationRule>() {
                             @Override
-                            public int compare(Rule o1, Rule o2) {
+                            public int compare(AssociationRule o1, AssociationRule o2) {
                                 return Double.compare(o1.getLift(), o2.getLift());
                             }
                         }.reversed())
@@ -285,7 +273,7 @@ public class ParallelFPGrowth {
             @Override
             public void processElement(ProcessContext c) throws Exception {
                 long databaseSize = c.sideInput(transactionCount);
-                long minimumAbsoluteSupport = (long)Math.ceil(databaseSize * MINIMUM_SUPPORT);
+                long minimumAbsoluteSupport = (long) Math.ceil(databaseSize * MINIMUM_SUPPORT);
                 if (c.element().getValue() >= minimumAbsoluteSupport) {
                     LOGGER.trace("Item '{}' | Support '{}' FREQUENT.", c.element().getKey(), c.element().getValue());
                     c.output(c.element());

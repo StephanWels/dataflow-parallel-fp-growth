@@ -36,7 +36,7 @@ import java.util.List;
 
 public class AssocRules {
     // a list of association rules
-    public final List<Rule> rules = new ArrayList<Rule>();  // rules
+    public final List<AssociationRule> rules = new ArrayList<AssociationRule>();  // rules
 
     // a name that an algorithm can give to this list of association rules
     private final String name;
@@ -45,8 +45,8 @@ public class AssocRules {
      * Sort the rules by confidence
      */
     public void sortByConfidence(){
-        Collections.sort(rules, new Comparator<Rule>() {
-            public int compare(Rule r1, Rule r2) {
+        Collections.sort(rules, new Comparator<AssociationRule>() {
+            public int compare(AssociationRule r1, AssociationRule r2) {
                 return (int)((r2.getConfidence() - r1.getConfidence() ) * Integer.MAX_VALUE);
             }
         });
@@ -67,7 +67,7 @@ public class AssocRules {
     public void printRules(int databaseSize){
         System.out.println(" ------- " + name + " -------");
         int i=0;
-        for(Rule rule : rules){
+        for(AssociationRule rule : rules){
             System.out.print("  rule " + i + ":  " + rule.toString());
             System.out.print("support :  " + rule.getRelativeSupport(databaseSize) +
                     " (" + rule.getAbsoluteSupport() + "/" + databaseSize + ") ");
@@ -85,7 +85,7 @@ public class AssocRules {
     public void printRulesWithLift(int databaseSize){
         System.out.println(" ------- " + name + " -------");
         int i=0;
-        for(Rule rule : rules){
+        for(AssociationRule rule : rules){
             System.out.print("  rule " + i + ":  " + rule.toString());
             System.out.print("support :  " + rule.getRelativeSupport(databaseSize) +
                     " (" + rule.getAbsoluteSupport() + "/" + databaseSize + ") ");
@@ -109,7 +109,7 @@ public class AssocRules {
         buffer.append(" -------\n");
         int i=0;
         // for each rule
-        for(Rule rule : rules){
+        for(AssociationRule rule : rules){
             // append the rule, its support and confidence.
             buffer.append("   rule ");
             buffer.append(i);
@@ -135,7 +135,7 @@ public class AssocRules {
      * Add a rule to this list of rules
      * @param rule the rule to be added
      */
-    public void addRule(Rule rule){
+    public void addRule(AssociationRule rule){
         rules.add(rule);
     }
 
@@ -151,7 +151,7 @@ public class AssocRules {
      * Get the list of rules.
      * @return a list of rules.
      */
-    public List<Rule> getRules() {
+    public List<AssociationRule> getRules() {
         return rules;
     }
 
