@@ -32,13 +32,13 @@ public class ParallelFPGrowth {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParallelFPGrowth.class);
 
-    public static final int NUMBER_OF_GROUPS = 10;
+    public static final int NUMBER_OF_GROUPS = 1;
 
     protected static final String PROJECT_ID = "rewe-148055";
-    protected static final String DATASET_SIZE = "-1000000";
-    protected static final double MINIMUM_SUPPORT = 0.01;
+    protected static final String DATASET_SIZE = "";
+    protected static final double MINIMUM_SUPPORT = 0.1;
     protected static final double MINIMUM_CONFIDENCE = 0.05;
-    protected static final double MINIMUM_LIFT = 1.5;
+    protected static final double MINIMUM_LIFT = 0.0;
     protected static final int DEFAULT_HEAP_SIZE = 50;
     protected static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     protected static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input" + DATASET_SIZE + "/*";
@@ -49,7 +49,6 @@ public class ParallelFPGrowth {
     protected static final byte[] BIG_TABLE_QUALIFIER_PATTERN = "pattern".getBytes();
 
     public static void main(final String... args) {
-
         CloudBigtableScanConfiguration bigtableScanConfiguration = new CloudBigtableScanConfiguration.Builder()
                 .withProjectId(PROJECT_ID)
                 .withInstanceId(BIGTABLE_INSTANCE_ID)
@@ -58,7 +57,7 @@ public class ParallelFPGrowth {
 
         // Read options from the command-line, check for required command-line arguments and validate argument values.
         PipelineOptions options = PipelineOptionsFactory.fromArgs(args).withValidation().create();
-        options = runOnDataflowService(options);
+//        options = runOnDataflowService(options);
         // Create the Pipeline with the specified options.
         final Pipeline pipeline = Pipeline.create(options);
 
@@ -67,6 +66,11 @@ public class ParallelFPGrowth {
         final PCollection<KV<String, Iterable<Integer>>> assembledTransactions = pipeline.apply("readTransactionsInputFile", TextIO.Read.from(INPUT_BUCKET_LOCATION))
                 .apply("extractTransactionId_ProductIdPairs", MapElements.via(new TransactionIdAndProductIdPairsFn()))
                 .apply("assembleTransactions", GroupByKey.create());
+
+        final PCollectionView<Map<Integer, String>> categoryNames = pipeline.apply("readTransactionsInputFile", TextIO.Read.from(INPUT_BUCKET_LOCATION))
+                .apply("extractTransactionId_ProductIdPairs", MapElements.via(new CategoryIdAndCategoryNamePairsFn()))
+                .apply("unique", RemoveDuplicates.create())
+                .apply("supplyAsView", View.asMap());
 
         final PCollectionView<Long> transactionCount = assembledTransactions.apply("countTransactions", Count.globally()).apply("supplyAsView", View.asSingleton());
 
@@ -78,6 +82,7 @@ public class ParallelFPGrowth {
 
         final PCollectionView<Map<Integer, Long>> frequentItemsWithFrequency = frequentItems.apply("supplyAsView", View.<Integer, Long>asMap());
 
+//        frequentItems.apply(ApproximateQuantiles.ApproximateQuantilesCombineFn.create())
 
         final PCollection<ItemsListWithSupport> frequentItemSetsWithSupport = assembledTransactions
                 .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency))
@@ -94,7 +99,7 @@ public class ParallelFPGrowth {
                 .apply("selectTopKPattern", selectTopKPattern())
                 .apply("expandToAllSubPatterns", expandTopKStringPatternsToAllSubPatterns())
                 .apply("groupByProductId", GroupByKey.create())
-                .apply("extractAssociationRules", extractAssociationRules(transactionCount))
+                .apply("extractAssociationRules", extractAssociationRules(transactionCount, categoryNames))
                 .apply("writeToFile", TextIO.Write.to(OUTPUT_BUCKET_LOCATION));
 
         pipeline.run();
@@ -128,8 +133,8 @@ public class ParallelFPGrowth {
     }
 
 
-    private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, String> extractAssociationRules(final PCollectionView<Long> transactionCount) {
-        return ParDo.withSideInputs(transactionCount).of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, String>() {
+    private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, String> extractAssociationRules(final PCollectionView<Long> transactionCount, PCollectionView<Map<Integer, String>> categoryNames) {
+        return ParDo.withSideInputs(transactionCount, categoryNames).of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, String>() {
 
             @Override
             public void processElement(ProcessContext c) throws Exception {
@@ -148,7 +153,8 @@ public class ParallelFPGrowth {
 
                 final StringBuilder productAssociationRulesResult = new StringBuilder("Item " + c.element().getKey() + "\n");
 
-                RuleFormatter ruleFormatter = new RuleFormatter();
+                final Map<Integer, String> categoryTranslations = c.sideInput(categoryNames);
+                RuleFormatter ruleFormatter = new RuleFormatter(categoryTranslations);
                 associationRules.getRules().stream()
                         .filter(rule -> Arrays.binarySearch(rule.getAntecedent(), productId) >= 0)
                         .sorted(new Comparator<AssociationRule>() {

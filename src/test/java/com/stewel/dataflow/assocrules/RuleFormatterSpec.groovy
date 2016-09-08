@@ -6,7 +6,7 @@ import spock.lang.Subject
 class RuleFormatterSpec extends Specification {
 
     @Subject
-    RuleFormatter ruleFormatter = new RuleFormatter()
+    RuleFormatter ruleFormatter = new RuleFormatter([1: 'Apfel', 3: 'Birne'])
 
     def "Rule is printed nicely"() {
         given:
@@ -20,6 +20,6 @@ class RuleFormatterSpec extends Specification {
                 .build()
 
         expect:
-        ruleFormatter.formatRule(rule) == "1,2 => 3,4 (support: 40, confidence: 0.35, lift: 4.13)"
+        ruleFormatter.formatRule(rule) == "Apfel,2 => Birne,4 (support: 40, confidence: 0.35, lift: 4.13)"
     }
 }
