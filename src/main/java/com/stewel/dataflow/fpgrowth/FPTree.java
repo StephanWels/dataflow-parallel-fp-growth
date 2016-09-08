@@ -116,9 +116,9 @@ public class FPTree {
      *
      * @param prefixPath      The prefix path
      * @param mapSupportBeta  The frequencies of items in the prefixpaths
-     * @param relativeMinsupp
+     * @param minimumSupport
      */
-    void addPrefixPath(List<FPNode> prefixPath, Map<Integer, Integer> mapSupportBeta, int relativeMinsupp) {
+    void addPrefixPath(List<FPNode> prefixPath, Map<Integer, Integer> mapSupportBeta, long minimumSupport) {
         // the first element of the prefix path contains the path support
         int pathCount = prefixPath.get(0).counter;
 
@@ -128,7 +128,7 @@ public class FPTree {
         for (int i = prefixPath.size() - 1; i >= 1; i--) {
             FPNode pathItem = prefixPath.get(i);
             // if the item is not frequent we skip it
-            if (mapSupportBeta.get(pathItem.itemID) < relativeMinsupp) {
+            if (mapSupportBeta.get(pathItem.itemID) < minimumSupport) {
                 continue;
             }
 

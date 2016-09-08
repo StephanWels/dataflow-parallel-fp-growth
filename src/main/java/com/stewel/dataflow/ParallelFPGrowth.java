@@ -22,6 +22,8 @@ import com.stewel.dataflow.fpgrowth.Itemsets;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedWriter;
 import java.io.OutputStreamWriter;
@@ -32,12 +34,13 @@ import java.util.stream.Collectors;
 
 public class ParallelFPGrowth {
 
-    public static final int NUMBER_OF_GROUPS = 2;
+    private static final Logger LOGGER = LoggerFactory.getLogger(ParallelFPGrowth.class);
+
+    public static final int NUMBER_OF_GROUPS = 10;
 
     protected static final String PROJECT_ID = "rewe-148055";
     protected static final String DATASET_SIZE = "-1000000";
-    protected static final int MINIMUM_SUPPORT = 500; //TODO: we should define a relative min support here
-    public static final int NUMBER_TRANSACTIONS = 51369; //TODO: we have to count this in a first step
+    protected static final double MINIMUM_SUPPORT = 0.01;
     protected static final int DEFAULT_HEAP_SIZE = 50;
     protected static final String STAGING_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/staging/";
     protected static final String INPUT_BUCKET_LOCATION = "gs://stephan-dataflow-bucket/input" + DATASET_SIZE + "/*";
@@ -45,7 +48,6 @@ public class ParallelFPGrowth {
     protected static final String BIGTABLE_INSTANCE_ID = "parallel-fpgrowth-itemsets";
     protected static final String BIGTABLE_TABLE_ID = "itemsets";
     protected static final byte[] BIG_TABLE_FAMILY = "support".getBytes();
-    protected static final byte[] BIG_TABLE_QUALIFIER = "item".getBytes();
     protected static final byte[] BIG_TABLE_QUALIFIER_PATTERN = "pattern".getBytes();
 
     public static void main(final String... args) {
@@ -64,36 +66,55 @@ public class ParallelFPGrowth {
 
         CloudBigtableIO.initializeForWrite(pipeline);
 
+        final PCollection<KV<String, Iterable<Integer>>> assembledTransactions = pipeline.apply("readTransactionsInputFile", TextIO.Read.from(INPUT_BUCKET_LOCATION))
+                .apply("extractTransactionId_ProductIdPairs", MapElements.via(new TransactionIdAndProductIdPairsFn()))
+                .apply("assembleTransactions", GroupByKey.create());
+
+        final PCollectionView<Long> transactionCount = assembledTransactions.apply("countTransactions", Count.globally()).apply("supplyAsView", View.asSingleton());
+
         final PCollection<KV<Integer, Long>> frequentItems = pipeline
                 .apply("readTransactionsInputFile", TextIO.Read.from(INPUT_BUCKET_LOCATION))
                 .apply("extractProductId_TransactionIdPairs", MapElements.via(new ProductIdAndTransactionIdPairsFn()))
                 .apply("countFrequencies", Count.<Integer, String>perKey())
-                .apply("filterForMinimumSupport", filterForMinimumSupport());
-
-        frequentItems.apply("transformToBigTablePutCommands", ParDo.of(new DoFn<KV<Integer, Long>, Mutation>() {
-            @Override
-            public void processElement(ProcessContext c) throws Exception {
-                final Long support = c.element().getValue();
-                final Integer productId = c.element().getKey();
-                final byte[] rowId = Bytes.toBytes(productId);
-                final byte[] supportValue = Bytes.toBytes(support);
-                Mutation putFrequentItem = new Put(rowId, System.currentTimeMillis()).addColumn(BIG_TABLE_FAMILY, BIG_TABLE_QUALIFIER, supportValue);
-                c.output(putFrequentItem);
-            }
-        }))
-                .apply(CloudBigtableIO.writeToTable(bigtableScanConfiguration));
+                .apply("filterForMinimumSupport", filterForMinimumSupport(transactionCount));
 
         final PCollectionView<Map<Integer, Long>> frequentItemsWithFrequency = frequentItems.apply("supplyAsView", View.<Integer, Long>asMap());
 
-        final PCollection<ItemsListWithSupport> frequentItemSetsWithSupport = pipeline.apply("readTransactionsInputFile", TextIO.Read.from(INPUT_BUCKET_LOCATION))
-                .apply("extractTransactionId_ProductIdPairs", MapElements.via(new TransactionIdAndProductIdPairsFn()))
-                .apply("assembleTransactions", GroupByKey.create())
+
+        final PCollection<ItemsListWithSupport> frequentItemSetsWithSupport = assembledTransactions
                 .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency))
                 .apply("generateGroupDependentTransactions", generateGroupDependentTransactions())
                 .apply("groupByGroupId", GroupByKey.create())
-                .apply("generateFPTrees", generateFPTrees(frequentItemsWithFrequency));
+                .apply("generateFPTrees", generateFPTrees(frequentItemsWithFrequency, transactionCount));
 
-        frequentItemSetsWithSupport.apply("transformToBigTablePutCommands", ParDo.of(new DoFn<ItemsListWithSupport, Mutation>() {
+        frequentItemSetsWithSupport.apply("transformToBigTablePutCommands", transformToBigTablePutCommands())
+                .apply(CloudBigtableIO.writeToTable(bigtableScanConfiguration));
+
+
+        frequentItemSetsWithSupport.apply("output_<productId,Pattern>_ForEachContainingProduct", outputThePatternForEachContainingProduct())
+                .apply("groupByProductId", GroupByKey.create())
+                .apply("selectTopKPattern", selectTopKPattern())
+                .apply("expandToAllSubPatterns", expandTopKStringPatternsToAllSubPatterns())
+                .apply("groupByProductId", GroupByKey.create())
+                .apply("extractAssociationRules", extractAssociationRules(transactionCount))
+                .apply("writeToFile", TextIO.Write.to(OUTPUT_BUCKET_LOCATION));
+
+        pipeline.run();
+    }
+
+    private static ParDo.Bound<KV<Integer, TopKStringPatterns>, KV<Integer, ItemsListWithSupport>> expandTopKStringPatternsToAllSubPatterns() {
+        return ParDo.of(new DoFn<KV<Integer, TopKStringPatterns>, KV<Integer, ItemsListWithSupport>>() {
+            @Override
+            public void processElement(ProcessContext c) throws Exception {
+                final Integer productId = c.element().getKey();
+                TopKStringPatterns patterns = c.element().getValue();
+                patterns.getPatterns().forEach(pattern -> c.output(KV.of(productId, pattern)));
+            }
+        });
+    }
+
+    private static ParDo.Bound<ItemsListWithSupport, Mutation> transformToBigTablePutCommands() {
+        return ParDo.of(new DoFn<ItemsListWithSupport, Mutation>() {
             @Override
             public void processElement(ProcessContext c) throws Exception {
                 final Long support = c.element().getValue();
@@ -105,40 +126,12 @@ public class ParallelFPGrowth {
                 Mutation putFrequentItem = new Put(rowId, System.currentTimeMillis()).addColumn(BIG_TABLE_FAMILY, BIG_TABLE_QUALIFIER_PATTERN, supportValue);
                 c.output(putFrequentItem);
             }
-        }))
-                .apply(CloudBigtableIO.writeToTable(bigtableScanConfiguration));
-
-
-        frequentItemSetsWithSupport.apply("output_<productId,Pattern>_ForEachContainingProduct", outputThePatternForEachContainingProduct())
-                .apply("groupByProductId", GroupByKey.create())
-                .apply("selectTopKPattern", selectTopKPattern())
-                .apply("expandToAllSubPatterns", ParDo.of(new DoFn<KV<Integer, TopKStringPatterns>, KV<Integer, ItemsListWithSupport>>() {
-                    @Override
-                    public void processElement(ProcessContext c) throws Exception {
-                        final Integer productId = c.element().getKey();
-                        TopKStringPatterns patterns = c.element().getValue();
-                        patterns.getPatterns().forEach(pattern -> c.output(KV.of(productId, pattern)));
-                    }
-                }))
-                .apply("groupByProductId", GroupByKey.create())
-                .apply("extractAssociationRules", extractAssociationRules())
-                .apply("writeToFile", TextIO.Write.to(OUTPUT_BUCKET_LOCATION));
-
-        pipeline.run();
-    }
-
-    private static ParDo.Bound<String, String> fileOutput() {
-        return ParDo.of(new DoFn<String, String>() {
-            @Override
-            public void processElement(ProcessContext c) throws Exception {
-                System.out.println(c.element());
-            }
         });
     }
 
 
-    private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, String> extractAssociationRules() {
-        return ParDo.of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, String>() {
+    private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, String> extractAssociationRules(final PCollectionView<Long> transactionCount) {
+        return ParDo.withSideInputs(transactionCount).of(new DoFn<KV<Integer, Iterable<ItemsListWithSupport>>, String>() {
 
             @Override
             public void processElement(ProcessContext c) throws Exception {
@@ -149,16 +142,12 @@ public class ParallelFPGrowth {
                 });
                 final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(SupportRepository.getInstance());
 
+                long numberTransactions = c.sideInput(transactionCount);
                 // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
-                final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, NUMBER_TRANSACTIONS, 0.01, 0.01);
-                c.output("Item " + c.element().getKey() + '\t' + associationRules.toString(NUMBER_TRANSACTIONS));
+                final AssocRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, numberTransactions, 0.01, 0.01);
+                c.output("Item " + c.element().getKey() + '\t' + associationRules.toString(numberTransactions));
             }
         });
-    }
-
-    private static List<Integer> parseStringToArrayList(String s) {
-        final String[] split = s.replaceAll("\\[|\\]", "").split(",");
-        return Arrays.asList(split).stream().map(String::trim).map(Integer::parseInt).collect(Collectors.toList());
     }
 
     private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, KV<Integer, TopKStringPatterns>> selectTopKPattern() {
@@ -166,12 +155,12 @@ public class ParallelFPGrowth {
 
             @Override
             public void processElement(ProcessContext c) throws Exception {
-                System.out.println("input=" + c.element());
+                LOGGER.debug("input=" + c.element());
                 TopKStringPatterns topKStringPatterns = new TopKStringPatterns();
                 for (final ItemsListWithSupport pattern : c.element().getValue()) {
                     topKStringPatterns = topKStringPatterns.merge(new TopKStringPatterns(Collections.singletonList(new ItemsListWithSupport(pattern.getKey(), pattern.getValue()))), DEFAULT_HEAP_SIZE);
                 }
-                System.out.println("merged=" + topKStringPatterns);
+                LOGGER.debug("merged=" + topKStringPatterns);
                 c.output(KV.of(c.element().getKey(), topKStringPatterns));
             }
         });
@@ -190,8 +179,8 @@ public class ParallelFPGrowth {
         });
     }
 
-    private static ParDo.Bound<KV<Integer, Iterable<TransactionTree>>, ItemsListWithSupport> generateFPTrees(final PCollectionView<Map<Integer, Long>> frequentItemsWithFrequency) {
-        return ParDo.withSideInputs(frequentItemsWithFrequency).of(new DoFn<KV<Integer, Iterable<TransactionTree>>, ItemsListWithSupport>() {
+    private static ParDo.Bound<KV<Integer, Iterable<TransactionTree>>, ItemsListWithSupport> generateFPTrees(final PCollectionView<Map<Integer, Long>> frequentItemsWithFrequency, PCollectionView<Long> transactionCount) {
+        return ParDo.withSideInputs(frequentItemsWithFrequency, transactionCount).of(new DoFn<KV<Integer, Iterable<TransactionTree>>, ItemsListWithSupport>() {
             @Override
             public void processElement(ProcessContext c) throws Exception {
                 final int groupId = c.element().getKey();
@@ -204,20 +193,18 @@ public class ParallelFPGrowth {
                     }
                 }
                 System.out.println(cTree.toString());
-
-                final AlgoFPGrowth algoFPGrowth = new AlgoFPGrowth(MINIMUM_SUPPORT);
-                AtomicInteger transactionCount = new AtomicInteger();
+                final long databaseSize = c.sideInput(transactionCount);
+                final AlgoFPGrowth algoFPGrowth = new AlgoFPGrowth(databaseSize, MINIMUM_SUPPORT);
+                AtomicInteger localFpTreeTransactionCount = new AtomicInteger();
 
                 final Map<Integer, Integer> productFrequencies = c.sideInput(frequentItemsWithFrequency).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, k -> k.getValue().intValue()));
 
                 cTree.iterator()
                         .forEachRemaining(itemsListWithSupport -> {
-                            transactionCount.incrementAndGet();
+                            localFpTreeTransactionCount.incrementAndGet();
                         });
 
-                BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
-                algoFPGrowth.fpgrowth(FPTreeConverter.convertToSPMFModel(cTree, productFrequencies), new int[0], transactionCount.get(), productFrequencies, writer, c);
-                writer.flush();
+                algoFPGrowth.fpgrowth(FPTreeConverter.convertToSPMFModel(cTree, productFrequencies), new int[0], localFpTreeTransactionCount.get(), productFrequencies, c);
             }
         });
     }
@@ -233,9 +220,8 @@ public class ParallelFPGrowth {
                     int groupId = getGroupId(productId);
 
                     if (!groups.contains(groupId)) {
-                        ArrayList<Integer> groupDependentTransaction = new ArrayList<Integer>(transaction.subList(0, j + 1));
+                        ArrayList<Integer> groupDependentTransaction = new ArrayList<>(transaction.subList(0, j + 1));
                         final KV<Integer, TransactionTree> output = KV.of(groupId, new TransactionTree(groupDependentTransaction, 1L));
-                        System.out.println(output);
                         c.output(output);
                     }
                     groups.add(groupId);
@@ -262,21 +248,22 @@ public class ParallelFPGrowth {
                 c.element().getValue().iterator().forEachRemaining(productsInTransaction::add);
                 productsInTransaction.sort(productFrequencyComparator.reversed());
                 productsInTransaction = productsInTransaction.stream().filter(productFrequencies::containsKey).collect(Collectors.toList());
-                System.out.println(productsInTransaction);
                 c.output(productsInTransaction);
             }
         });
     }
 
-    private static ParDo.Bound<KV<Integer, Long>, KV<Integer, Long>> filterForMinimumSupport() {
-        return ParDo.of(new DoFn<KV<Integer, Long>, KV<Integer, Long>>() {
+    private static ParDo.Bound<KV<Integer, Long>, KV<Integer, Long>> filterForMinimumSupport(PCollectionView<Long> transactionCount) {
+        return ParDo.withSideInputs(transactionCount).of(new DoFn<KV<Integer, Long>, KV<Integer, Long>>() {
             @Override
             public void processElement(ProcessContext c) throws Exception {
-                if (c.element().getValue() >= MINIMUM_SUPPORT) {
-                    System.out.println("Item " + c.element().getKey() + " | Support " + c.element().getValue());
+                long databaseSize = c.sideInput(transactionCount);
+                long minimumAbsoluteSupport = Math.round(databaseSize * MINIMUM_SUPPORT);
+                if (c.element().getValue() >= minimumAbsoluteSupport) {
+                    LOGGER.trace("Item '{}' | Support '{}' FREQUENT.", c.element().getKey(), c.element().getValue());
                     c.output(c.element());
                 } else {
-                    System.out.println("Item " + c.element().getKey() + " | Support " + c.element().getValue() + " NOT FREQUENT.");
+                    LOGGER.trace("Item '{}' | Support '{}' NOT FREQUENT.", c.element().getKey(), c.element().getValue());
                 }
 
             }

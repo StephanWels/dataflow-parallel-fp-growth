@@ -68,7 +68,7 @@ public class Rule {
      *                     found.
      * @return the support (double)
      */
-    public double getRelativeSupport(int databaseSize) {
+    public double getRelativeSupport(long databaseSize) {
         return ((double) transactionCount) / ((double) databaseSize);
     }
 

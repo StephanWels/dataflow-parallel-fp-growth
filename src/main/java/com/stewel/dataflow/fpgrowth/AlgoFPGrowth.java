@@ -20,8 +20,13 @@ package com.stewel.dataflow.fpgrowth;
 
 import com.google.cloud.dataflow.sdk.transforms.DoFn;
 import com.stewel.dataflow.ItemsListWithSupport;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -42,6 +47,8 @@ import java.util.stream.Collectors;
  */
 public class AlgoFPGrowth {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(AlgoFPGrowth.class);
+
     // for statistics
     private long startTimestamp; // start time of the latest execution
     private long endTime; // end time of the latest execution
@@ -49,9 +56,8 @@ public class AlgoFPGrowth {
     private int itemsetCount; // number of freq. itemsets found
 
     // parameter
-    public final int relativeMinsupp;// the relative minimum support
+    public final long minimumSupport;// the relative minimum support
 
-    BufferedWriter writer = null; // object to write the output file
     DoFn.ProcessContext c;
 
     // The  patterns that are found
@@ -62,52 +68,8 @@ public class AlgoFPGrowth {
     /**
      * Constructor
      */
-    public AlgoFPGrowth(final int minimumSupport) {
-        this.relativeMinsupp = minimumSupport;
-    }
-
-    /**
-     * This method scans the input database to calculate the support of single items
-     *
-     * @param input      the path of the input file
-     * @param mapSupport a map for storing the support of each item (key: item, value: support)
-     * @throws IOException exception if error while writing the file
-     */
-    private void scanDatabaseToDetermineFrequencyOfSingleItems(String input,
-                                                               final Map<Integer, Integer> mapSupport)
-            throws FileNotFoundException, IOException {
-        //Create object for reading the input file
-        BufferedReader reader = new BufferedReader(new FileReader(input));
-        String line;
-        // for each line (transaction) until the end of file
-        while (((line = reader.readLine()) != null)) {
-            // if the line is  a comment, is  empty or is a
-            // kind of metadata
-            if (line.isEmpty() == true ||
-                    line.charAt(0) == '#' || line.charAt(0) == '%'
-                    || line.charAt(0) == '@') {
-                continue;
-            }
-
-            // split the line into items
-            String[] lineSplited = line.split(" ");
-            // for each item
-            for (String itemString : lineSplited) {
-                // increase the support count of the item
-                Integer item = Integer.parseInt(itemString);
-                // increase the support count of the item
-                Integer count = mapSupport.get(item);
-                if (count == null) {
-                    mapSupport.put(item, 1);
-                } else {
-                    mapSupport.put(item, ++count);
-                }
-            }
-            // increase the transaction count
-            transactionCount++;
-        }
-        // close the input file
-        reader.close();
+    public AlgoFPGrowth(final long databaseSize, final double minimumRelativeSupport) {
+        this.minimumSupport = Math.round(databaseSize * minimumRelativeSupport);
     }
 
 
@@ -118,15 +80,14 @@ public class AlgoFPGrowth {
      * @param mapSupport The frequency of each item in the prefix tree.
      * @throws IOException exception if error writing the output file
      */
-    public void fpgrowth(FPTree tree, int[] prefixAlpha, int prefixSupport, Map<Integer, Integer> mapSupport, BufferedWriter writer, DoFn.ProcessContext c) throws IOException {
-        this.writer = writer;
+    public void fpgrowth(FPTree tree, int[] prefixAlpha, int prefixSupport, Map<Integer, Integer> mapSupport, DoFn.ProcessContext c) throws IOException {
         this.c = c;
         // We need to check if there is a single path in the prefix tree or not.
         if (!tree.hasMoreThanOnePath) {
             // That means that there is a single path, so we
             // add all combinations of this path, concatenated with the prefix "alpha", to the set of patterns found.
-            if (tree.root.childs.size() == 0) {
-                System.out.println("Test");
+            if (tree.root.childs.isEmpty()) {
+                LOGGER.debug("Test");
             }
             addAllCombinationsForPathAndPrefix(tree.root.childs.get(0), prefixAlpha); // CORRECT?
 
@@ -151,7 +112,7 @@ public class AlgoFPGrowth {
             // get the support of the item
             int support = mapSupport.get(item);
             // if the item is not frequent, we skip it
-            if (support < relativeMinsupp) {
+            if (support < minimumSupport) {
                 continue;
             }
             // Create Beta by concatening Alpha with the current item
@@ -220,7 +181,7 @@ public class AlgoFPGrowth {
             FPTree treeBeta = new FPTree();
             // Add each prefixpath in the FP-tree.
             for (List<FPNode> prefixPath : prefixPaths) {
-                treeBeta.addPrefixPath(prefixPath, mapSupportBeta, relativeMinsupp);
+                treeBeta.addPrefixPath(prefixPath, mapSupportBeta, minimumSupport);
             }
             // Create the header list.
             treeBeta.createHeaderList(mapSupportBeta);
@@ -228,7 +189,7 @@ public class AlgoFPGrowth {
             // Mine recursively the Beta tree if the root as child(s)
             if (treeBeta.root.childs.size() > 0) {
                 // recursive call
-                fpgrowth(treeBeta, beta, betaSupport, mapSupportBeta, writer, c);
+                fpgrowth(treeBeta, beta, betaSupport, mapSupportBeta, c);
             }
         }
 
@@ -251,9 +212,7 @@ public class AlgoFPGrowth {
         saveItemset(itemset, node.counter);
 
         // recursive call if there is a node link
-//		if(node.nodeLink != null){
-//			addAllCombinationsForPathAndPrefix(node.nodeLink, prefix);
-        if (node.childs.size() != 0) {
+        if (!node.childs.isEmpty()) {
             addAllCombinationsForPathAndPrefix(node.childs.get(0), itemset);
             addAllCombinationsForPathAndPrefix(node.childs.get(0), prefix);
         }
@@ -271,55 +230,34 @@ public class AlgoFPGrowth {
         // in lexical order.
         Arrays.sort(itemset);
 
-        // if the result should be saved to a file
-        if (writer != null) {
-            // Create a string buffer
-            StringBuffer buffer = new StringBuffer();
-            // write the items of the itemset
-            for (int i = 0; i < itemset.length; i++) {
-                buffer.append(itemset[i]);
-                if (i != itemset.length - 1) {
-                    buffer.append(' ');
-                }
+        StringBuilder stringBuilder = new StringBuilder();
+        // write the items of the itemset
+        for (int i = 0; i < itemset.length; i++) {
+            stringBuilder.append(itemset[i]);
+            if (i != itemset.length - 1) {
+                stringBuilder.append(' ');
             }
-            // Then, write the support
-            buffer.append(" #SUP: ");
-            buffer.append(support);
-            // write to file and create a new line
-            writer.write(buffer.toString());
-            writer.newLine();
-            final ArrayList<Integer> itemsList = new ArrayList(Arrays.stream(itemset).mapToObj(Integer::valueOf).collect(Collectors.toList()));
-            c.output(new ItemsListWithSupport(itemsList, Long.valueOf(support)));
-        }// otherwise the result is kept into memory
-        else {
-            // create an object Itemset and add it to the set of patterns
-            // found.
-            Itemset itemsetObj = new Itemset(itemset);
-            itemsetObj.setAbsoluteSupport(support);
-            patterns.addItemset(itemsetObj);
         }
+        // Then, write the support
+        stringBuilder.append(" #SUP: ");
+        stringBuilder.append(support);
+        // write to file and create a new line
+        LOGGER.debug(stringBuilder.toString());
+        final ArrayList<Integer> itemsList = new ArrayList(Arrays.stream(itemset).mapToObj(Integer::valueOf).collect(Collectors.toList()));
+        c.output(new ItemsListWithSupport(itemsList, Long.valueOf(support)));
+
     }
 
     /**
-     * Print statistics about the algorithm execution to System.out.
+     * Print statistics about the algorithm execution to Logger.
      */
     public void printStats() {
-        System.out
-                .println("=============  FP-GROWTH - STATS =============");
+        LOGGER.info("=============  FP-GROWTH - STATS =============");
         long temps = endTime - startTimestamp;
-        System.out.println(" Transactions count from database : " + transactionCount);
-        System.out.println(" Frequent itemsets count : " + itemsetCount);
-        System.out.println(" Total time ~ " + temps + " ms");
-        System.out
-                .println("===================================================");
+        LOGGER.info(" Transactions count from database : " + transactionCount);
+        LOGGER.info(" Frequent itemsets count : " + itemsetCount);
+        LOGGER.info(" Total time ~ " + temps + " ms");
+        LOGGER.info("===================================================");
     }
 
-    /**
-     * Get the number of transactions in the last transaction database read.
-     *
-     * @return the number of transactions.
-     */
-    public int getDatabaseSize() {
-        return transactionCount;
-    }
 }

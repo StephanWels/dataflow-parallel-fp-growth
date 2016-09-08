@@ -61,7 +61,7 @@ public class AlgoAgrawalFaster94 {
     protected long startTimestamp = 0; // last execution start time
     protected long endTimeStamp = 0;   // last execution end time
     protected int ruleCount = 0;  // number of rules generated
-    protected int databaseSize = 0; // number of transactions in database
+    protected long databaseSize = 0; // number of transactions in database
 
     // parameters
     protected double minconf;
@@ -106,7 +106,7 @@ public class AlgoAgrawalFaster94 {
      * @return the set of association rules if the user wished to save them into memory
      * @throws IOException exception if error writing to the output file
      */
-    public AssocRules runAlgorithm(Itemsets patterns, String output, int databaseSize, double minconf,
+    public AssocRules runAlgorithm(Itemsets patterns, String output, long databaseSize, double minconf,
                                    double minlift) throws IOException {
         // save the parameters
         this.minconf = minconf;
@@ -126,7 +126,7 @@ public class AlgoAgrawalFaster94 {
      * @return the set of rules found if the user chose to save the result to memory
      * @throws IOException exception if error while writting to file
      */
-    private AssocRules runAlgorithm(Itemsets patterns, String output, int databaseSize)
+    private AssocRules runAlgorithm(Itemsets patterns, String output, long databaseSize)
             throws IOException {
 
         // if the user want to keep the result into memory

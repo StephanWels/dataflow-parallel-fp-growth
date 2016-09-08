@@ -103,7 +103,7 @@ public class AssocRules {
      * @param databaseSize the number of transactions in the database where the rules were found.
      * @return a string
      */
-    public String toString(int databaseSize){
+    public String toString(long databaseSize){
         // create a string buffer
         StringBuffer buffer = new StringBuffer(" ------- ");
         buffer.append(name);
