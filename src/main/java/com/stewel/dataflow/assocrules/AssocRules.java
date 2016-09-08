@@ -31,13 +31,12 @@ import java.util.List;
  * rather than saving it to a file.
  *
  * @see   AlgoAgrawalFaster94
- * @see   AssocRule
  * @author Philippe Fournier-Viger
  */
 
 public class AssocRules {
     // a list of association rules
-    public final List<AssocRule> rules = new ArrayList<AssocRule>();  // rules
+    public final List<Rule> rules = new ArrayList<Rule>();  // rules
 
     // a name that an algorithm can give to this list of association rules
     private final String name;
@@ -46,8 +45,8 @@ public class AssocRules {
      * Sort the rules by confidence
      */
     public void sortByConfidence(){
-        Collections.sort(rules, new Comparator<AssocRule>() {
-            public int compare(AssocRule r1, AssocRule r2) {
+        Collections.sort(rules, new Comparator<Rule>() {
+            public int compare(Rule r1, Rule r2) {
                 return (int)((r2.getConfidence() - r1.getConfidence() ) * Integer.MAX_VALUE);
             }
         });
@@ -68,7 +67,7 @@ public class AssocRules {
     public void printRules(int databaseSize){
         System.out.println(" ------- " + name + " -------");
         int i=0;
-        for(AssocRule rule : rules){
+        for(Rule rule : rules){
             System.out.print("  rule " + i + ":  " + rule.toString());
             System.out.print("support :  " + rule.getRelativeSupport(databaseSize) +
                     " (" + rule.getAbsoluteSupport() + "/" + databaseSize + ") ");
@@ -86,7 +85,7 @@ public class AssocRules {
     public void printRulesWithLift(int databaseSize){
         System.out.println(" ------- " + name + " -------");
         int i=0;
-        for(AssocRule rule : rules){
+        for(Rule rule : rules){
             System.out.print("  rule " + i + ":  " + rule.toString());
             System.out.print("support :  " + rule.getRelativeSupport(databaseSize) +
                     " (" + rule.getAbsoluteSupport() + "/" + databaseSize + ") ");
@@ -110,7 +109,7 @@ public class AssocRules {
         buffer.append(" -------\n");
         int i=0;
         // for each rule
-        for(AssocRule rule : rules){
+        for(Rule rule : rules){
             // append the rule, its support and confidence.
             buffer.append("   rule ");
             buffer.append(i);
@@ -136,7 +135,7 @@ public class AssocRules {
      * Add a rule to this list of rules
      * @param rule the rule to be added
      */
-    public void addRule(AssocRule rule){
+    public void addRule(Rule rule){
         rules.add(rule);
     }
 
@@ -152,7 +151,7 @@ public class AssocRules {
      * Get the list of rules.
      * @return a list of rules.
      */
-    public List<AssocRule> getRules() {
+    public List<Rule> getRules() {
         return rules;
     }
 

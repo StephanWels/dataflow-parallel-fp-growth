@@ -18,6 +18,7 @@ package com.stewel.dataflow.assocrules;
 
 import com.stewel.dataflow.fpgrowth.Itemset;
 import com.stewel.dataflow.fpgrowth.Itemsets;
+import org.apache.commons.digester.Rules;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -40,8 +41,7 @@ import java.util.List;
  * method is called.
  *
  * @author Philippe Fournier-Viger
- * @see AssocRule
- * @see AssocRules
+ * @see Rules
  **/
 
 public class AlgoAgrawalFaster94 {
@@ -488,7 +488,7 @@ public class AlgoAgrawalFaster94 {
             writer.newLine();
         }// otherwise the result is kept into memory
         else {
-            rules.addRule(new AssocRule(itemset1, itemset2, supportItemset1, absoluteSupport, conf, lift));
+            rules.addRule(new Rule(itemset1, itemset2, supportItemset1, absoluteSupport, conf, lift));
         }
     }
 
