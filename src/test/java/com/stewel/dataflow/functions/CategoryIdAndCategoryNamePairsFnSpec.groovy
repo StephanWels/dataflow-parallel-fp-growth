@@ -1,6 +1,7 @@
-package com.stewel.dataflow
+package com.stewel.dataflow.functions
 
 import com.google.cloud.dataflow.sdk.values.KV
+import com.stewel.dataflow.functions.CategoryIdAndCategoryNamePairsFn
 import spock.lang.Specification
 import spock.lang.Subject
 

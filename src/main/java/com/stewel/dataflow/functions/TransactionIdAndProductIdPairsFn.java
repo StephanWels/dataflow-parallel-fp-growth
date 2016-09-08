@@ -1,4 +1,4 @@
-package com.stewel.dataflow;
+package com.stewel.dataflow.functions;
 
 import com.google.cloud.dataflow.sdk.transforms.SimpleFunction;
 import com.google.cloud.dataflow.sdk.values.KV;
