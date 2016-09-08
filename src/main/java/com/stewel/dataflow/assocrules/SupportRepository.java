@@ -6,12 +6,15 @@ import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class SupportRepository implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SupportRepository.class);
 
     protected static final String PROJECT_ID = "rewe-148055";
     protected static final String BIGTABLE_INSTANCE_ID = "parallel-fpgrowth-itemsets";
@@ -47,10 +50,10 @@ public class SupportRepository implements AutoCloseable {
 
             final long support = Bytes.toLong(table.get(new Get(rowKey)).getValue(BIG_TABLE_FAMILY, BIG_TABLE_QUALIFIER_PATTERN));
             superPerformantCache.put(pattern, support);
-            System.out.println("Support " + support + ", " + pattern);
+            LOGGER.info("Support " + support + ", " + pattern);
             return support;
         } catch (IOException exception) {
-            System.out.println("ERROR WITH BIGTABLE");
+            LOGGER.error("ERROR WITH BIGTABLE", exception);
         }
         return 0;
     }

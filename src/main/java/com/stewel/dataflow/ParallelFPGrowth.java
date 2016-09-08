@@ -17,10 +17,7 @@ import com.google.cloud.dataflow.sdk.transforms.View;
 import com.google.cloud.dataflow.sdk.values.KV;
 import com.google.cloud.dataflow.sdk.values.PCollection;
 import com.google.cloud.dataflow.sdk.values.PCollectionView;
-import com.stewel.dataflow.assocrules.AlgoAgrawalFaster94;
-import com.stewel.dataflow.assocrules.AssocRules;
-import com.stewel.dataflow.assocrules.Rule;
-import com.stewel.dataflow.assocrules.SupportRepository;
+import com.stewel.dataflow.assocrules.*;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
 import com.stewel.dataflow.fpgrowth.Itemset;
@@ -163,6 +160,7 @@ public class ParallelFPGrowth {
 
                 final StringBuilder productAssociationRulesResult = new StringBuilder("Item " + c.element().getKey() + "\n");
 
+                RuleFormatter ruleFormatter = new RuleFormatter();
                 associationRules.getRules().stream()
                         .filter(rule -> Arrays.binarySearch(rule.getAntecedent(), productId) >= 0)
                         .sorted(new Comparator<Rule>() {
@@ -171,7 +169,8 @@ public class ParallelFPGrowth {
                                 return Double.compare(o1.getLift(), o2.getLift());
                             }
                         }.reversed())
-                        .forEach(rule -> productAssociationRulesResult.append(rule.toString()).append("\n"));
+                        .map(ruleFormatter::formatRule)
+                        .forEach(rule -> productAssociationRulesResult.append(rule).append("\n"));
                 c.output(productAssociationRulesResult.toString());
             }
         });
