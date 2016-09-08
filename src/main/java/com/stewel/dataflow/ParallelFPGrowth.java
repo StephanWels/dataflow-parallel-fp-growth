@@ -84,7 +84,7 @@ public class ParallelFPGrowth {
 
         final PCollection<ItemsListWithSupport> frequentItemSetsWithSupport = assembledTransactions
                 .apply("sortTransactionsBySupport", sortTransactionsBySupport(frequentItemsWithFrequency))
-                .apply("generateGroupDependentTransactions", generateGroupDependentTransactions())
+                .apply("generateGroupDependentTransactions", ParDo.of(new GenerateGroupDependentTransactionsDoFn(NUMBER_OF_GROUPS)))
                 .apply("groupByGroupId", GroupByKey.create())
                 .apply("generateFPTrees", generateFPTrees(frequentItemsWithFrequency, transactionCount));
 
@@ -195,35 +195,6 @@ public class ParallelFPGrowth {
         });
     }
 
-    private static ParDo.Bound<List<Integer>, KV<Integer, TransactionTree>> generateGroupDependentTransactions() {
-        return ParDo.of(new DoFn<List<Integer>, KV<Integer, TransactionTree>>() {
-            @Override
-            public void processElement(ProcessContext c) throws Exception {
-                List<Integer> transaction = c.element();
-                Set<Integer> groups = new HashSet<>();
-                for (int j = transaction.size() - 1; j >= 0; j--) {
-                    int productId = transaction.get(j);
-                    int groupId = getGroupId(productId);
-
-                    if (!groups.contains(groupId)) {
-                        ArrayList<Integer> groupDependentTransaction = new ArrayList<>(transaction.subList(0, j + 1));
-                        final KV<Integer, TransactionTree> output = KV.of(groupId, new TransactionTree(groupDependentTransaction, 1L));
-                        c.output(output);
-                    }
-                    groups.add(groupId);
-                }
-            }
-        });
-    }
-
-    private static DataflowPipelineOptions runOnDataflowService(PipelineOptions options) {
-        DataflowPipelineOptions dataflowOptions = options.as(DataflowPipelineOptions.class);
-        dataflowOptions.setRunner(BlockingDataflowPipelineRunner.class);
-        dataflowOptions.setStagingLocation(STAGING_BUCKET_LOCATION);
-        dataflowOptions.setProject(PROJECT_ID);
-        return dataflowOptions;
-    }
-
     private static ParDo.Bound<KV<String, Iterable<Integer>>, List<Integer>> sortTransactionsBySupport(final PCollectionView<Map<Integer, Long>> frequentItemsWithFrequency) {
         return ParDo.withSideInputs(frequentItemsWithFrequency).of(new DoFn<KV<String, Iterable<Integer>>, List<Integer>>() {
             @Override
@@ -256,8 +227,11 @@ public class ParallelFPGrowth {
         });
     }
 
-    //TODO: distribute groupIds according to F-List
-    private static int getGroupId(Integer productId) {
-        return productId % NUMBER_OF_GROUPS;
+    private static DataflowPipelineOptions runOnDataflowService(PipelineOptions options) {
+        DataflowPipelineOptions dataflowOptions = options.as(DataflowPipelineOptions.class);
+        dataflowOptions.setRunner(BlockingDataflowPipelineRunner.class);
+        dataflowOptions.setStagingLocation(STAGING_BUCKET_LOCATION);
+        dataflowOptions.setProject(PROJECT_ID);
+        return dataflowOptions;
     }
 }
