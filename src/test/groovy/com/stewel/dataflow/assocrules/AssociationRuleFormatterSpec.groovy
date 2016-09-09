@@ -1,8 +1,5 @@
-package dataflow.assocrules
+package com.stewel.dataflow.assocrules
 
-import com.stewel.dataflow.assocrules.AssociationRule
-import com.stewel.dataflow.assocrules.AssociationRuleFormatter
-import com.stewel.dataflow.assocrules.ImmutableAssociationRule
 import spock.lang.Specification
 import spock.lang.Subject
 

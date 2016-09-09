@@ -1,4 +1,4 @@
-package dataflow.fpgrowth
+package com.stewel.dataflow.fpgrowth
 import com.openpojo.reflection.PojoClass
 import com.openpojo.reflection.impl.PojoClassFactory
 import com.openpojo.validation.Validator
