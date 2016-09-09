@@ -8,14 +8,14 @@ import spock.lang.Subject
 
 class GenerateGroupDependentTransactionsDoFnSpec extends Specification {
 
-    def numberOfGroups = 2;
+    def numberOfGroups = 3;
 
     @Subject
     GenerateGroupDependentTransactionsDoFn doFn = new GenerateGroupDependentTransactionsDoFn(numberOfGroups);
 
-    def "transactions are generated for both groups"() {
+    def "transactions are generated for three groups"() {
         given:
-        def transaction = [1, 2, 3, 4]
+        def transaction = [1, 3, 2, 4]
 
         DoFn.ProcessContext context = Mock(DoFn.ProcessContext) {
             element() >> transaction
@@ -27,12 +27,21 @@ class GenerateGroupDependentTransactionsDoFnSpec extends Specification {
         then:
         1 * context.output(_) >> { args ->
             KV kv = (KV) args[0]
-            assert kv.key == 0
+            assert kv.key == 1
+            def groupDependentransaction = ((TransactionTree)kv.value).iterator().next().key
+            assert groupDependentransaction == [1, 3, 2, 4]
         }
         1 * context.output(_) >> { args ->
             KV kv = (KV) args[0]
-            assert kv.key == 1
+            assert kv.key == 2
+            def groupDependentransaction = ((TransactionTree)kv.value).iterator().next().key
+            assert groupDependentransaction == [1, 3, 2]
         }
-
+        1 * context.output(_) >> { args ->
+            KV kv = (KV) args[0]
+            assert kv.key == 0
+            def groupDependentransaction = ((TransactionTree)kv.value).iterator().next().key
+            assert groupDependentransaction == [1, 3]
+        }
     }
 }
