@@ -17,6 +17,7 @@ package com.stewel.dataflow.assocrules;
 */
 
 import com.stewel.dataflow.fpgrowth.Itemset;
+import com.stewel.dataflow.fpgrowth.ItemsetComparator;
 import com.stewel.dataflow.fpgrowth.Itemsets;
 import org.apache.commons.digester.Rules;
 
@@ -45,6 +46,8 @@ import java.util.List;
  **/
 
 public class AlgoAgrawalFaster94 {
+
+    private final static ItemsetComparator ITEMSET_COMPARATOR = new ItemsetComparator();
 
     private final SupportRepository supportRepository;
     // the frequent itemsets that will be used to generate the rules
@@ -144,7 +147,7 @@ public class AlgoAgrawalFaster94 {
                 @Override
                 public int compare(Itemset o1, Itemset o2) {
                     // The following code assume that itemsets are the same size
-                    return ArraysAlgos.comparatorItemsetSameSize.compare(o1.getItems(), o2.getItems());
+                    return ITEMSET_COMPARATOR.compare(o1.getItems(), o2.getItems());
                 }
             });
         }
@@ -164,7 +167,7 @@ public class AlgoAgrawalFaster94 {
                     int itemsetHm_P_1[] = new int[]{item};
 
                     // make a copy of  lk without items from  hm_P_1
-                    int[] itemset_Lk_minus_hm_P_1 = ArraysAlgos.cloneItemSetMinusOneItem(lk.getItems(), item);
+                    int[] itemset_Lk_minus_hm_P_1 = Itemset.cloneItemSetMinusOneItem(lk.getItems(), item);
 
                     // Now we will calculate the support and confidence
                     // of the rule: itemset_Lk_minus_hm_P_1 ==>  hm_P_1
@@ -250,7 +253,7 @@ public class AlgoAgrawalFaster94 {
             for (int[] hm_P_1 : Hm_plus_1) {
 
                 // We subtract the candidate from the itemset "lk"
-                int[] itemset_Lk_minus_hm_P_1 = ArraysAlgos.cloneItemSetMinusAnItemset(lk.getItems(), hm_P_1);
+                int[] itemset_Lk_minus_hm_P_1 = Itemset.cloneItemSetMinusAnItemset(lk.getItems(), hm_P_1);
 
                 // We will now calculate the support of the rule  Lk/(hm_P_1) ==> hm_P_1
                 // we need it to calculate the confidence
@@ -321,7 +324,7 @@ public class AlgoAgrawalFaster94 {
             int middle = (first + last) >> 1; // >>1 means to divide by 2
             int[] itemsetMiddle = patternsSameSize.get(middle).getItems();
 
-            int comparison = ArraysAlgos.comparatorItemsetSameSize.compare(itemset, itemsetMiddle);
+            int comparison = ITEMSET_COMPARATOR.compare(itemset, itemsetMiddle);
             if (comparison > 0) {
                 first = middle + 1;  //  the itemset compared is larger than the subset according to the lexical order
             } else if (comparison < 0) {
