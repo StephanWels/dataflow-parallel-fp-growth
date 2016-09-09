@@ -109,23 +109,12 @@ public class ParallelFPGrowth {
         frequentItemSetsWithSupport.apply("output_<productId,Pattern>_ForEachContainingProduct", ParDo.of(new OutputPatternForEachContainingProductIdDoFn()))
                 .apply("groupByProductId", GroupByKey.create())
                 .apply("selectTopKPattern", MapElements.via(new SelectTopKPatternFn(DEFAULT_HEAP_SIZE)))
-                .apply("expandToAllSubPatterns", expandTopKStringPatternsToAllSubPatterns())
+                .apply("expandToAllSubPatterns", ParDo.of(new ExpandTopKStringPatternsToAllSubPatternsDoFn()))
                 .apply("groupByProductId", GroupByKey.create())
                 .apply("extractAssociationRules", extractAssociationRules(transactionCount, categoryNames))
                 .apply("writeToFile", TextIO.Write.to(OUTPUT_BUCKET_LOCATION));
 
         pipeline.run();
-    }
-
-    private static ParDo.Bound<KV<Integer, TopKStringPatterns>, KV<Integer, ItemsListWithSupport>> expandTopKStringPatternsToAllSubPatterns() {
-        return ParDo.of(new DoFn<KV<Integer, TopKStringPatterns>, KV<Integer, ItemsListWithSupport>>() {
-            @Override
-            public void processElement(ProcessContext c) throws Exception {
-                final Integer productId = c.element().getKey();
-                TopKStringPatterns patterns = c.element().getValue();
-                patterns.getPatterns().forEach(pattern -> c.output(KV.of(productId, pattern)));
-            }
-        });
     }
 
     private static ParDo.Bound<KV<Integer, Iterable<ItemsListWithSupport>>, String> extractAssociationRules(final PCollectionView<Long> transactionCount, PCollectionView<Map<Integer, String>> categoryNames) {
