@@ -27,12 +27,7 @@ import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
 import com.stewel.dataflow.fpgrowth.ImmutableItemset;
 import com.stewel.dataflow.fpgrowth.Itemsets;
-import com.stewel.dataflow.functions.CategoryIdAndCategoryNamePairsFn;
-import com.stewel.dataflow.functions.FrequentItemSetToBigTablePutCommandFn;
-import com.stewel.dataflow.functions.GenerateGroupDependentTransactionsDoFn;
-import com.stewel.dataflow.functions.ProductIdAndTransactionIdPairsFn;
-import com.stewel.dataflow.functions.SelectTopKPatternFn;
-import com.stewel.dataflow.functions.TransactionIdAndProductIdPairsFn;
+import com.stewel.dataflow.functions.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -111,7 +106,7 @@ public class ParallelFPGrowth {
                 .apply(CloudBigtableIO.writeToTable(bigtableScanConfiguration));
 
 
-        frequentItemSetsWithSupport.apply("output_<productId,Pattern>_ForEachContainingProduct", outputThePatternForEachContainingProduct())
+        frequentItemSetsWithSupport.apply("output_<productId,Pattern>_ForEachContainingProduct", ParDo.of(new OutputPatternForEachContainingProductIdDoFn()))
                 .apply("groupByProductId", GroupByKey.create())
                 .apply("selectTopKPattern", MapElements.via(new SelectTopKPatternFn(DEFAULT_HEAP_SIZE)))
                 .apply("expandToAllSubPatterns", expandTopKStringPatternsToAllSubPatterns())
@@ -169,19 +164,6 @@ public class ParallelFPGrowth {
                         .map(ruleFormatter::formatRule)
                         .forEach(rule -> productAssociationRulesResult.append(rule).append("\n"));
                 c.output(productAssociationRulesResult.toString());
-            }
-        });
-    }
-
-    private static ParDo.Bound<ItemsListWithSupport, KV<Integer, ItemsListWithSupport>> outputThePatternForEachContainingProduct() {
-        return ParDo.of(new DoFn<ItemsListWithSupport, KV<Integer, ItemsListWithSupport>>() {
-
-            @Override
-            public void processElement(ProcessContext c) throws Exception {
-                ItemsListWithSupport patterns = c.element();
-                for (Integer item : patterns.getKey()) {
-                    c.output(KV.of(item, patterns));
-                }
             }
         });
     }
