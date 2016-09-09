@@ -21,7 +21,8 @@ import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.stewel.dataflow.assocrules.AlgoAgrawalFaster94;
 import com.stewel.dataflow.assocrules.AssociationRule;
 import com.stewel.dataflow.assocrules.AssociationRuleFormatter;
-import com.stewel.dataflow.assocrules.AssociationRules;
+import com.stewel.dataflow.assocrules.AssociationRuleInMemoryRepository;
+import com.stewel.dataflow.assocrules.AssociationRuleRepository;
 import com.stewel.dataflow.assocrules.SupportRepository;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
@@ -122,7 +123,7 @@ public class ParallelFPGrowth {
 
             @Override
             public void processElement(ProcessContext c) throws Exception {
-                final Itemsets patterns = new Itemsets("TOP K PATTERNS");
+                final Itemsets patterns = new Itemsets();
 
                 c.element().getValue().forEach(itemsListWithSupport -> {
                     patterns.addItemset(ImmutableItemset.builder()
@@ -130,11 +131,13 @@ public class ParallelFPGrowth {
                             .absoluteSupport(itemsListWithSupport.getValue())
                             .build());
                 });
-                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(SupportRepository.getInstance());
+                final AssociationRuleRepository associationRuleRepository = new AssociationRuleInMemoryRepository();
+                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(associationRuleRepository, SupportRepository.getInstance());
 
                 long numberTransactions = c.sideInput(transactionCount);
                 // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
-                final AssociationRules associationRules = associationRulesExtractionAlgorithm.runAlgorithm(patterns, null, numberTransactions, MINIMUM_CONFIDENCE, MINIMUM_LIFT);
+                associationRulesExtractionAlgorithm.runAlgorithm(patterns, numberTransactions, MINIMUM_CONFIDENCE, MINIMUM_LIFT);
+                List<AssociationRule> associationRules = associationRuleRepository.findAll();
 
                 final int productId = c.element().getKey();
 
@@ -142,7 +145,7 @@ public class ParallelFPGrowth {
 
                 final Map<Integer, String> categoryTranslations = c.sideInput(categoryNames);
                 AssociationRuleFormatter ruleFormatter = new AssociationRuleFormatter(categoryTranslations);
-                associationRules.getRules().stream()
+                associationRules.stream()
                         .filter(rule -> Arrays.binarySearch(rule.getAntecedent(), productId) >= 0)
                         .sorted(new Comparator<AssociationRule>() {
                             @Override

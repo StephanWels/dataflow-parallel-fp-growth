@@ -1,38 +1,25 @@
 package com.stewel.dataflow.fpgrowth;
 
+import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.lang.builder.ReflectionToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
+
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * This class represents a set of itemsets where an itemset is an array of integers. Itemsets are ordered by size. For
  * example, level 1 means itemsets of size 1 (that contains 1 item).
- *
- * @author Philippe Fournier-Viger
  */
 public class Itemsets {
-
-    /**
-     * A name that we give to these itemsets (e.g. "frequent itemsets").
-     */
-    private final String name;
-
     /**
      * We store the itemsets in a list named "levels". Position i in "levels" contains the list of itemsets of size i.
      */
     private final List<List<Itemset>> levels = new ArrayList<List<Itemset>>();
 
-    /**
-     * The total number of itemsets.
-     */
-    private int itemsetsCount = 0;
-
-    public Itemsets(final String name) {
-        this.name = name;
+    public Itemsets() {
         levels.add(new ArrayList<Itemset>()); // We create an empty level 0 by default.
-    }
-
-    public String getName() {
-        return name;
     }
 
     /**
@@ -41,12 +28,11 @@ public class Itemsets {
      * @param itemset the itemset
      */
     public void addItemset(final Itemset itemset) {
-        final int level = itemset.size();
-        while (levels.size() <= level) {
+        final int levelNumber = itemset.size();
+        while (levels.size() <= levelNumber) {
             levels.add(new ArrayList<>());
         }
-        levels.get(level).add(itemset);
-        itemsetsCount++;
+        levels.get(levelNumber).add(itemset);
     }
 
     /**
@@ -57,5 +43,20 @@ public class Itemsets {
      */
     public List<List<Itemset>> getLevels() {
         return levels;
+    }
+
+    @Override
+    public final boolean equals(final Object object) {
+        return EqualsBuilder.reflectionEquals(this, object);
+    }
+
+    @Override
+    public final int hashCode() {
+        return HashCodeBuilder.reflectionHashCode(this);
+    }
+
+    @Override
+    public final String toString() {
+        return ReflectionToStringBuilder.toString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

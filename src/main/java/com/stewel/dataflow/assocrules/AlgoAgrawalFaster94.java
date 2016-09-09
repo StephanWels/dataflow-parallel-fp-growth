@@ -21,14 +21,13 @@ import com.stewel.dataflow.fpgrowth.ItemsetComparator;
 import com.stewel.dataflow.fpgrowth.Itemsets;
 import org.apache.commons.digester.Rules;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
+import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This is an implementation of the "faster algorithm" for generating association rules,
@@ -49,21 +48,12 @@ public class AlgoAgrawalFaster94 {
 
     private final static ItemsetComparator ITEMSET_COMPARATOR = new ItemsetComparator();
 
+    private final AssociationRuleRepository associationRuleRepository;
     private final SupportRepository supportRepository;
+
     // the frequent itemsets that will be used to generate the rules
     private Itemsets patterns;
 
-    // variable used to store the result if the user choose to save
-    // the result in memory rather than to an output file
-    protected ImmutableAssociationRules.Builder rules;
-
-    // object to write the output file if the user wish to write to a file
-    protected BufferedWriter writer = null;
-
-    // for statistics
-    protected long startTimestamp = 0; // last execution start time
-    protected long endTimeStamp = 0;   // last execution end time
-    protected int ruleCount = 0;  // number of rules generated
     protected long databaseSize = 0; // number of transactions in database
 
     // parameters
@@ -74,22 +64,23 @@ public class AlgoAgrawalFaster94 {
     /**
      * Default constructor
      */
-    public AlgoAgrawalFaster94(final SupportRepository supportRepository) {
-        this.supportRepository = supportRepository;
+    public AlgoAgrawalFaster94(@Nonnull final AssociationRuleRepository associationRuleRepository,
+                               @Nonnull final SupportRepository supportRepository) {
+        this.associationRuleRepository = Objects.requireNonNull(associationRuleRepository);
+        this.supportRepository = Objects.requireNonNull(supportRepository);
     }
 
     /**
      * Run the algorithm
      *
      * @param patterns     a set of frequent itemsets
-     * @param output       an output file path for writing the result or null if the user want this method to return the result
      * @param databaseSize the number of transactions in the database
      * @param minconf      the minconf threshold
      * @param minlift      the minlift threshold
      * @return the set of association rules if the user wished to save them into memory
      * @throws IOException exception if error writing to the output file
      */
-    public AssociationRules runAlgorithm(Itemsets patterns, String output, long databaseSize, double minconf,
+    public void runAlgorithm(Itemsets patterns, long databaseSize, double minconf,
                                    double minlift) throws IOException {
         // save the parameters
         this.minconf = minconf;
@@ -97,37 +88,20 @@ public class AlgoAgrawalFaster94 {
         usingLift = true;
 
         // start the algorithm
-        return runAlgorithm(patterns, output, databaseSize);
+        runAlgorithm(patterns, databaseSize);
     }
 
     /**
      * Run the algorithm for generating association rules from a set of itemsets.
      *
-     * @param patterns     the set of itemsets
-     * @param output       the output file path. If null the result is saved in memory and returned by the method.
+     * @param patterns     the set of itemsets.
      * @param databaseSize the number of transactions in the original database
      * @return the set of rules found if the user chose to save the result to memory
      * @throws IOException exception if error while writting to file
      */
-    private AssociationRules runAlgorithm(Itemsets patterns, String output, long databaseSize)
+    private void runAlgorithm(Itemsets patterns, long databaseSize)
             throws IOException {
-
-        // if the user want to keep the result into memory
-        if (output == null) {
-            writer = null;
-            rules = ImmutableAssociationRules.builder().name("ASSOCIATION RULES");
-        } else {
-            // if the user want to save the result to a file
-            rules = null;
-            writer = new BufferedWriter(new FileWriter(output));
-        }
-
         this.databaseSize = databaseSize;
-
-        // record the time when the algorithm starts
-        startTimestamp = System.currentTimeMillis();
-        // initialize variable to count the number of rules found
-        ruleCount = 0;
         // save itemsets in a member variable
         this.patterns = patterns;
 
@@ -204,7 +178,14 @@ public class AlgoAgrawalFaster94 {
 
                     // If we are here, it means that the rule respect the minconf and minlift parameters.
                     // Therefore, we output the rule.
-                    saveRule(itemset_Lk_minus_hm_P_1, support, itemsetHm_P_1, supportHm_P_1, lk.getAbsoluteSupport(), conf, lift);
+                    associationRuleRepository.save(ImmutableAssociationRule.builder()
+                            .antecedent(itemset_Lk_minus_hm_P_1)
+                            .consequent(itemsetHm_P_1)
+                            .coverage(support)
+                            .transactionCount(lk.getAbsoluteSupport())
+                            .confidence(conf)
+                            .lift(lift)
+                            .build());
 
                     // Then we keep the itemset  hm_P_1 to find more rules using this itemset and lk.
                     H1_for_recursion.add(itemsetHm_P_1);
@@ -215,17 +196,6 @@ public class AlgoAgrawalFaster94 {
             }
 
         }
-
-        // close the file if we saved the result to a file
-        if (writer != null) {
-            writer.close();
-        }
-        // record the end time of the algorithm execution
-        endTimeStamp = System.currentTimeMillis();
-
-        // Return the rules found if the user chose to save the result to memory rather than a file.
-        // Otherwise, null will be returned
-        return rules.build();
     }
 
     /**
@@ -291,7 +261,14 @@ public class AlgoAgrawalFaster94 {
 
                 // The rule has passed the confidence and lift threshold requirements,
                 // so we can output it
-                saveRule(itemset_Lk_minus_hm_P_1, support, hm_P_1, supportHm_P_1, lk.getAbsoluteSupport(), conf, lift);
+                associationRuleRepository.save(ImmutableAssociationRule.builder()
+                        .antecedent(itemset_Lk_minus_hm_P_1)
+                        .consequent(hm_P_1)
+                        .coverage(support)
+                        .transactionCount(lk.getAbsoluteSupport())
+                        .confidence(conf)
+                        .lift(lift)
+                        .build());
 
                 // if k == m+1, then we cannot explore further rules using Lk since Lk will be too small.
                 if (k != m + 1) {
@@ -406,84 +383,4 @@ public class AlgoAgrawalFaster94 {
         // return the set of candidates
         return candidates;
     }
-
-    /**
-     * Save a rule to the output file or in memory depending
-     * if the user has provided an output file path or not
-     *
-     * @param itemset1        left itemset of the rule
-     * @param supportItemset1 the support of itemset1 if known
-     * @param itemset2        right itemset of the rule
-     * @param supportItemset2 the support of itemset2 if known
-     * @param absoluteSupport support of the rule
-     * @param conf            confidence of the rule
-     * @param lift            lift of the rule
-     * @throws IOException exception if error writing the output file
-     */
-    protected void saveRule(int[] itemset1, long supportItemset1, int[] itemset2, long supportItemset2,
-                            long absoluteSupport, double conf, double lift) throws IOException {
-        ruleCount++;
-
-        // if the result should be saved to a file
-        if (writer != null) {
-            StringBuffer buffer = new StringBuffer();
-            // write itemset 1
-            for (int i = 0; i < itemset1.length; i++) {
-                buffer.append(itemset1[i]);
-                if (i != itemset1.length - 1) {
-                    buffer.append(" ");
-                }
-            }
-            // write separator
-            buffer.append(" ==> ");
-            // write itemset 2
-            for (int i = 0; i < itemset2.length; i++) {
-                buffer.append(itemset2[i]);
-                if (i != itemset2.length - 1) {
-                    buffer.append(" ");
-                }
-            }
-            // write separator
-            buffer.append(" #SUP: ");
-            // write support
-            buffer.append(absoluteSupport);
-            // write separator
-            buffer.append(" #CONF: ");
-            // write confidence
-            buffer.append(doubleToString(conf));
-            if (usingLift) {
-                buffer.append(" #LIFT: ");
-                buffer.append(doubleToString(lift));
-            }
-
-            writer.write(buffer.toString());
-            writer.newLine();
-        }// otherwise the result is kept into memory
-        else {
-            rules.addRules(ImmutableAssociationRule.builder()
-                    .antecedent(itemset1)
-                    .consequent(itemset2)
-                    .coverage(supportItemset1)
-                    .transactionCount(absoluteSupport)
-                    .confidence(conf)
-                    .lift(lift)
-                    .build());
-        }
-    }
-
-
-    /**
-     * Convert a double value to a string with only five decimal
-     *
-     * @param value a double value
-     * @return a string
-     */
-    String doubleToString(double value) {
-        // convert it to a string with two decimals
-        DecimalFormat format = new DecimalFormat();
-        format.setMinimumFractionDigits(0);
-        format.setMaximumFractionDigits(5);
-        return format.format(value);
-    }
-
 }

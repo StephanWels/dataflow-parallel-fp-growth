@@ -1,9 +1,11 @@
 package com.stewel.dataflow.assocrules;
 
-public class AssociationRuleRepository {
+import java.util.List;
 
-    public void save(final AssociationRule associationRule) {
+public interface AssociationRuleRepository {
 
-    }
+    List<AssociationRule> findAll();
+
+    void save(AssociationRule associationRule);
 
 }
