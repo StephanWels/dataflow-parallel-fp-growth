@@ -6,8 +6,7 @@ import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.util.Bytes;
 
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 
 public class FrequentItemSetToBigTablePutCommandFn extends SimpleFunction<ItemsListWithSupport, Mutation> {
     private final byte[] bigTableFamily;
@@ -21,9 +20,9 @@ public class FrequentItemSetToBigTablePutCommandFn extends SimpleFunction<ItemsL
     @Override
     public Mutation apply(ItemsListWithSupport itemsListWithSupport) {
         final Long support = itemsListWithSupport.getValue();
-        final ArrayList<Integer> itemset = itemsListWithSupport.getKey();
-        Collections.sort(itemset);
-        final byte[] rowId = itemset.toString().getBytes();
+        final int[] itemset = itemsListWithSupport.getKey();
+        Arrays.sort(itemset);
+        final byte[] rowId = Arrays.toString(itemset).getBytes();
         final byte[] supportValue = Bytes.toBytes(support);
         return new Put(rowId, System.currentTimeMillis()).addColumn(bigTableFamily, bigTableQualifier, supportValue);
     }

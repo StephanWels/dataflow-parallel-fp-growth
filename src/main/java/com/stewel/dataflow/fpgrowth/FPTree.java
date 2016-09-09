@@ -56,10 +56,10 @@ public class FPTree {
      *
      * @param transaction
      */
-    public void addTransaction(List<Integer> transaction) {
+    public void addTransaction(int[] transaction) {
         FPNode currentNode = root;
         // For each item in the transaction
-        for (Integer item : transaction) {
+        for (int item : transaction) {
             // look if there is a node already in the FP-Tree
             FPNode child = currentNode.getChildWithID(item);
             if (child == null) {

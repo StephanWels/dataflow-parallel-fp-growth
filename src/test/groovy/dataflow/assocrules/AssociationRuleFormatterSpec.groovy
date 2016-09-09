@@ -1,12 +1,15 @@
-package com.stewel.dataflow.assocrules
+package dataflow.assocrules
 
+import com.stewel.dataflow.assocrules.AssociationRule
+import com.stewel.dataflow.assocrules.AssociationRuleFormatter
+import com.stewel.dataflow.assocrules.ImmutableAssociationRule
 import spock.lang.Specification
 import spock.lang.Subject
 
-class RuleFormatterSpec extends Specification {
+class AssociationRuleFormatterSpec extends Specification {
 
     @Subject
-    RuleFormatter ruleFormatter = new RuleFormatter([1: 'Apfel', 3: 'Birne'])
+    AssociationRuleFormatter ruleFormatter = new AssociationRuleFormatter([1: 'Apfel', 3: 'Birne'])
 
     def "Rule is printed nicely"() {
         given:

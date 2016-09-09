@@ -15,7 +15,7 @@ import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.stewel.dataflow.assocrules.*;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
-import com.stewel.dataflow.fpgrowth.Itemset;
+import com.stewel.dataflow.fpgrowth.ImmutableItemset;
 import com.stewel.dataflow.fpgrowth.Itemsets;
 import com.stewel.dataflow.functions.*;
 import org.slf4j.Logger;
@@ -122,7 +122,10 @@ public class ParallelFPGrowth {
                 final Itemsets patterns = new Itemsets("TOP K PATTERNS");
 
                 c.element().getValue().forEach(itemsListWithSupport -> {
-                    patterns.addItemset(new Itemset(itemsListWithSupport.getKey(), itemsListWithSupport.getValue()));
+                    patterns.addItemset(ImmutableItemset.builder()
+                            .items(itemsListWithSupport.getKey())
+                            .absoluteSupport(itemsListWithSupport.getValue())
+                            .build());
                 });
                 final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(SupportRepository.getInstance());
 
@@ -135,7 +138,7 @@ public class ParallelFPGrowth {
                 final StringBuilder productAssociationRulesResult = new StringBuilder("Item " + c.element().getKey() + "\n");
 
                 final Map<Integer, String> categoryTranslations = c.sideInput(categoryNames);
-                RuleFormatter ruleFormatter = new RuleFormatter(categoryTranslations);
+                AssociationRuleFormatter ruleFormatter = new AssociationRuleFormatter(categoryTranslations);
                 associationRules.getRules().stream()
                         .filter(rule -> Arrays.binarySearch(rule.getAntecedent(), productId) >= 0)
                         .sorted(new Comparator<AssociationRule>() {

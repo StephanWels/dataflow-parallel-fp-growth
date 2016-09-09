@@ -29,11 +29,18 @@ public class GenerateGroupDependentTransactionsDoFn extends DoFn<List<Integer>, 
 
             if (!groups.contains(groupId)) {
                 ArrayList<Integer> groupDependentTransaction = new ArrayList<>(transaction.subList(0, j + 1));
-                final KV<Integer, TransactionTree> output = KV.of(groupId, new TransactionTree(groupDependentTransaction, 1L));
+                final KV<Integer, TransactionTree> output = KV.of(groupId, new TransactionTree(toIntArray(groupDependentTransaction), 1L));
                 c.output(output);
             }
             groups.add(groupId);
         }
+    }
+
+    private static int[] toIntArray(List<Integer> list){
+        int[] ret = new int[list.size()];
+        for(int i = 0;i < ret.length;i++)
+            ret[i] = list.get(i);
+        return ret;
     }
 
     //TODO: distribute groupIds according to F-List

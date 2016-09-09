@@ -23,12 +23,12 @@ import com.stewel.dataflow.ItemsListWithSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * This is an implementation of the FPGROWTH algorithm (Han et al., 2004).
@@ -243,8 +243,7 @@ public class AlgoFPGrowth {
         stringBuilder.append(support);
         // write to file and create a new line
         LOGGER.debug(stringBuilder.toString());
-        final ArrayList<Integer> itemsList = new ArrayList(Arrays.stream(itemset).mapToObj(Integer::valueOf).collect(Collectors.toList()));
-        c.output(new ItemsListWithSupport(itemsList, Long.valueOf(support)));
+        c.output(new ItemsListWithSupport(itemset, Long.valueOf(support)));
 
     }
 

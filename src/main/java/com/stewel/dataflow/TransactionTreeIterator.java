@@ -7,6 +7,7 @@ import com.google.common.collect.AbstractIterator;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Stack;
 
 @DefaultCoder(AvroCoder.class)
@@ -51,7 +52,7 @@ final class TransactionTreeIterator extends AbstractIterator<ItemsListWithSuppor
         while (it.hasNext()) {
             data.add(transactionTree.attribute(it.next()[0]));
         }
-        ItemsListWithSupport returnable = new ItemsListWithSupport(data, transactionTree.count(childId) - sum);
+        ItemsListWithSupport returnable = new ItemsListWithSupport(toIntArray(data), transactionTree.count(childId) - sum);
         int[] top = depth.peek();
         while (top[1] + 1 == transactionTree.childCount(top[0])) {
             depth.pop();
@@ -61,6 +62,13 @@ final class TransactionTreeIterator extends AbstractIterator<ItemsListWithSuppor
             top = depth.peek();
         }
         return returnable;
+    }
+
+    private static int[] toIntArray(List<Integer> list){
+        int[] ret = new int[list.size()];
+        for(int i = 0;i < ret.length;i++)
+            ret[i] = list.get(i);
+        return ret;
     }
 
 }
