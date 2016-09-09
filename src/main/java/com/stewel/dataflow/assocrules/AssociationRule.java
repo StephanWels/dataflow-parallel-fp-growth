@@ -12,15 +12,15 @@ public abstract class AssociationRule {
 
     public abstract int[] getConsequent();
 
-    public abstract int getCoverage();
+    public abstract long getCoverage();
 
-    public abstract int getTransactionCount();
+    public abstract long getTransactionCount();
 
     public abstract double getConfidence();
 
     public abstract double getLift();
 
-    public int getAbsoluteSupport() {
+    public long getAbsoluteSupport() {
         return getTransactionCount();
     }
 

@@ -9,13 +9,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @DefaultCoder(AvroCoder.class)
 public final class TransactionTree implements Iterable<ItemsListWithSupport>, Serializable {
@@ -53,13 +50,6 @@ public final class TransactionTree implements Iterable<ItemsListWithSupport>, Se
 
     public TransactionTree(final int[] items, final Long support) {
         representedAsList = true;
-        final ArrayList<Integer> itemsList = new ArrayList(Arrays.stream(items).mapToObj(Integer::valueOf).collect(Collectors.toList()));
-        transactionSet = Lists.newArrayList();
-        transactionSet.add(new ItemsListWithSupport(itemsList, support));
-    }
-
-    public TransactionTree(final ArrayList<Integer> items, final Long support) {
-        representedAsList = true;
         transactionSet = Lists.newArrayList();
         transactionSet.add(new ItemsListWithSupport(items, support));
     }
@@ -86,7 +76,7 @@ public final class TransactionTree implements Iterable<ItemsListWithSupport>, Se
         return false;
     }
 
-    public int addPattern(final List<Integer> myList, final long addCount) {
+    public int addPattern(final int[] myList, final long addCount) {
         int temp = ROOTNODEID;
         int ret = 0;
         boolean addCountMode = true;
@@ -155,12 +145,12 @@ public final class TransactionTree implements Iterable<ItemsListWithSupport>, Se
         //int count = 0;
         while (it.hasNext()) {
             final ItemsListWithSupport p = it.next();
-            final List<Integer> items= p.getKey();
-            for (int idx = 0; idx < items.size(); idx++) {
-                if (!frequencyList.containsKey(items.get(idx))) {
-                    frequencyList.put(items.get(idx), new MutableLong(0));
+            final int[] items= p.getKey();
+            for (int idx = 0; idx < items.length; idx++) {
+                if (!frequencyList.containsKey(items[idx])) {
+                    frequencyList.put(items[idx], new MutableLong(0));
                 }
-                frequencyList.get(items.get(idx)).add(p.getValue());
+                frequencyList.get(items[idx]).add(p.getValue());
             }
         }
         return frequencyList;
@@ -174,10 +164,11 @@ public final class TransactionTree implements Iterable<ItemsListWithSupport>, Se
         final List<ItemsListWithSupport> compressedTransactionSet = Lists.newArrayList();
         while (it.hasNext()) {
             final ItemsListWithSupport p = it.next();
-            Collections.sort(p.getKey());
+            int[] key = p.getKey();
+            Arrays.sort(key);
             compressedTransactionSet.add(p);
-            node += ctree.addPattern(p.getKey(), p.getValue());
-            size += p.getKey().size() + 2;
+            node += ctree.addPattern(key, p.getValue());
+            size += key.length + 2;
         }
 
         if (LOG.isDebugEnabled()) {

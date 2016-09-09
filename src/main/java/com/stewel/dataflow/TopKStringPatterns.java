@@ -47,11 +47,12 @@ public final class TopKStringPatterns implements Serializable {
             if (myItem != null && otherItem != null) {
                 int cmp = myItem.getValue().compareTo(otherItem.getValue());
                 if (cmp == 0) {
-                    cmp = myItem.getKey().size() - otherItem.getKey().size();
+                    int[] key = myItem.getKey();
+                    int[] otherKey = otherItem.getKey();
+                    cmp = key.length - otherKey.length;
                     if (cmp == 0) {
-                        for (int j = 0; j < myItem.getKey().size(); j++) {
-                            cmp = myItem.getKey().get(j).compareTo(
-                                    otherItem.getKey().get(j));
+                        for (int j = 0; j < key.length; j++) {
+                            cmp = compare(key[j], otherKey[j]);
                             if (cmp != 0) {
                                 break;
                             }
@@ -79,6 +80,10 @@ public final class TopKStringPatterns implements Serializable {
             }
         }
         return new TopKStringPatterns(patterns);
+    }
+
+    public static int compare(int x, int y) {
+        return (x < y) ? -1 : ((x == y) ? 0 : 1);
     }
 
     @Override

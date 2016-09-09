@@ -82,26 +82,6 @@ public class AlgoAgrawalFaster94 {
      * @param output       an output file path for writing the result or null if the user want this method to return the result
      * @param databaseSize the number of transactions in the database
      * @param minconf      the minconf threshold
-     * @return the set of association rules if the user wished to save them into memory
-     * @throws IOException exception if error writing to the output file
-     */
-    public AssociationRules runAlgorithm(Itemsets patterns, String output, int databaseSize, double minconf) throws IOException {
-        // save the parameters
-        this.minconf = minconf;
-        this.minlift = 0;
-        usingLift = false;
-
-        // start the algorithm
-        return runAlgorithm(patterns, output, databaseSize);
-    }
-
-    /**
-     * Run the algorithm
-     *
-     * @param patterns     a set of frequent itemsets
-     * @param output       an output file path for writing the result or null if the user want this method to return the result
-     * @param databaseSize the number of transactions in the database
-     * @param minconf      the minconf threshold
      * @param minlift      the minlift threshold
      * @return the set of association rules if the user wished to save them into memory
      * @throws IOException exception if error writing to the output file
@@ -188,7 +168,7 @@ public class AlgoAgrawalFaster94 {
 
                     // Now we will calculate the support and confidence
                     // of the rule: itemset_Lk_minus_hm_P_1 ==>  hm_P_1
-                    int support = calculateSupport(itemset_Lk_minus_hm_P_1); // THIS COULD BE
+                    long support = calculateSupport(itemset_Lk_minus_hm_P_1); // THIS COULD BE
                     // OPTIMIZED ?
                     double supportAsDouble = (double) support;
 
@@ -201,7 +181,7 @@ public class AlgoAgrawalFaster94 {
                     }
 
                     double lift = 0;
-                    int supportHm_P_1 = 0;
+                    long supportHm_P_1 = 0;
                     // if the user is using the minlift threshold, we will need
                     // to also calculate the lift of the rule:  itemset_Lk_minus_hm_P_1 ==>  hm_P_1
                     if (usingLift) {
@@ -274,7 +254,7 @@ public class AlgoAgrawalFaster94 {
 
                 // We will now calculate the support of the rule  Lk/(hm_P_1) ==> hm_P_1
                 // we need it to calculate the confidence
-                int support = calculateSupport(itemset_Lk_minus_hm_P_1);
+                long support = calculateSupport(itemset_Lk_minus_hm_P_1);
 
                 double supportAsDouble = (double) support;
 
@@ -288,7 +268,7 @@ public class AlgoAgrawalFaster94 {
                 }
 
                 double lift = 0;
-                int supportHm_P_1 = 0;
+                long supportHm_P_1 = 0;
                 // if the user is using the minlift threshold, then we will need to calculate the lift of the
                 // rule as well and check if the lift is higher or equal to minlift.
                 if (usingLift) {
@@ -329,7 +309,7 @@ public class AlgoAgrawalFaster94 {
      * @param itemset the itemset.
      * @return the support of the itemset
      */
-    private int calculateSupport(int[] itemset) {
+    private long calculateSupport(int[] itemset) {
         // We first get the list of patterns having the same size as "itemset"
         List<Itemset> patternsSameSize = patterns.getLevels().get(itemset.length);
 
@@ -424,17 +404,6 @@ public class AlgoAgrawalFaster94 {
         return candidates;
     }
 
-
-    /**
-     * Print statistics about the algorithm execution to System.out.
-     */
-    public void printStats() {
-        System.out.println("=============  ASSOCIATION RULE GENERATION v0.96f- STATS =============");
-        System.out.println(" Number of association rules generated : " + ruleCount);
-        System.out.println(" Total time ~ " + (endTimeStamp - startTimestamp) + " ms");
-        System.out.println("===================================================");
-    }
-
     /**
      * Save a rule to the output file or in memory depending
      * if the user has provided an output file path or not
@@ -448,8 +417,8 @@ public class AlgoAgrawalFaster94 {
      * @param lift            lift of the rule
      * @throws IOException exception if error writing the output file
      */
-    protected void saveRule(int[] itemset1, int supportItemset1, int[] itemset2, int supportItemset2,
-                            int absoluteSupport, double conf, double lift) throws IOException {
+    protected void saveRule(int[] itemset1, long supportItemset1, int[] itemset2, long supportItemset2,
+                            long absoluteSupport, double conf, double lift) throws IOException {
         ruleCount++;
 
         // if the result should be saved to a file
