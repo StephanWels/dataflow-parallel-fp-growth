@@ -20,7 +20,6 @@ class FrequentItemSetToBigTablePutCommandFnSpec extends Specification {
         }
 
         when:
-        System.out.println(pattern)
         def result = fn.apply(itemsListWithSupport)
 
         then:

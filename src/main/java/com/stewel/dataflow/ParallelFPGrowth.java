@@ -16,7 +16,6 @@ import com.stewel.dataflow.assocrules.*;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
 import com.stewel.dataflow.fpgrowth.ImmutableItemset;
-import com.stewel.dataflow.fpgrowth.Itemset;
 import com.stewel.dataflow.fpgrowth.Itemsets;
 import com.stewel.dataflow.functions.*;
 import org.slf4j.Logger;
@@ -139,7 +138,7 @@ public class ParallelFPGrowth {
                 final StringBuilder productAssociationRulesResult = new StringBuilder("Item " + c.element().getKey() + "\n");
 
                 final Map<Integer, String> categoryTranslations = c.sideInput(categoryNames);
-                RuleFormatter ruleFormatter = new RuleFormatter(categoryTranslations);
+                AssociationRuleFormatter ruleFormatter = new AssociationRuleFormatter(categoryTranslations);
                 associationRules.getRules().stream()
                         .filter(rule -> Arrays.binarySearch(rule.getAntecedent(), productId) >= 0)
                         .sorted(new Comparator<AssociationRule>() {

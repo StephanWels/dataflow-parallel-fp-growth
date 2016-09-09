@@ -9,7 +9,6 @@ import org.immutables.value.Value;
 @Value.Immutable
 public abstract class Itemset {
 
-
     public abstract int[] getItems();
 
     public abstract long getAbsoluteSupport();
