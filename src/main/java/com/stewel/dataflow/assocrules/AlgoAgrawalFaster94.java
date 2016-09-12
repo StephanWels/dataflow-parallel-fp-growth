@@ -47,61 +47,37 @@ public class AlgoAgrawalFaster94 {
     private final ItemsetSupportCalculator itemsetSupportCalculator;
     private final AssociationRuleWriter associationRuleWriter;
 
-    protected long databaseSize = 0; // number of transactions in database
+    private final Itemsets patterns;
+    private final long databaseSize; // number of transactions in database
+    private final double minimumConfidence;
+    private final double minimumLift;
+    private final boolean usingLift = true;
 
-    // parameters
-    protected double minconf;
-    protected double minlift;
-    protected boolean usingLift = true;
-
-    /**
-     * Default constructor
-     */
     public AlgoAgrawalFaster94(@Nonnull final ItemsetCandidateGenerator itemsetsCandidateGenerator,
                                @Nonnull final ItemsetSupportCalculator itemsetSupportCalculator,
-                               @Nonnull final AssociationRuleWriter associationRuleWriter) {
+                               @Nonnull final AssociationRuleWriter associationRuleWriter,
+                               @Nonnull final Itemsets patterns,
+                               final long databaseSize,
+                               final double minimumConfidence,
+                               final double minimumLift) {
         this.itemsetsCandidateGenerator = Objects.requireNonNull(itemsetsCandidateGenerator, "itemsetsCandidateGenerator");
         this.itemsetSupportCalculator = Objects.requireNonNull(itemsetSupportCalculator, "itemsetSupportCalculator");
         this.associationRuleWriter = Objects.requireNonNull(associationRuleWriter, "associationRuleWriter");
-    }
-
-    /**
-     * Run the algorithm
-     *
-     * @param patterns     a set of frequent itemsets
-     * @param databaseSize the number of transactions in the database
-     * @param minconf      the minconf threshold
-     * @param minlift      the minlift threshold
-     * @return the set of association rules if the user wished to save them into memory
-     * @throws IOException exception if error writing to the output file
-     */
-    public void runAlgorithm(Itemsets patterns,
-                             long databaseSize,
-                             double minconf,
-                             double minlift) throws IOException {
-        // save the parameters
-        this.minconf = minconf;
-        this.minlift = minlift;
-        usingLift = true;
-
-        // start the algorithm
-        runAlgorithm(patterns, databaseSize);
+        this.patterns = Objects.requireNonNull(patterns, "patterns");
+        this.databaseSize = databaseSize;
+        this.minimumConfidence = minimumConfidence;
+        this.minimumLift = minimumLift;
+        itemsetSupportCalculator.init(patterns);
     }
 
     /**
      * Run the algorithm for generating association rules from a set of itemsets.
      *
-     * @param patterns     the set of itemsets.
-     * @param databaseSize the number of transactions in the original database
      * @return the set of rules found if the user chose to save the result to memory
      * @throws IOException exception if error while writting to file
      */
-    private void runAlgorithm(Itemsets patterns, long databaseSize)
+    public void runAlgorithm()
             throws IOException {
-        this.databaseSize = databaseSize;
-
-        // Now we will generate the rules.
-
         // For each frequent itemset of size >=2 that we will name "lk"
         for (int k = 2; k < patterns.getLevels().size(); k++) {
             for (Itemset lk : patterns.getLevels().get(k)) {
@@ -125,14 +101,14 @@ public class AlgoAgrawalFaster94 {
                     // calculate the confidence of the rule : itemset_Lk_minus_hm_P_1 ==>  hm_P_1
                     double conf = lk.getAbsoluteSupport() / supportAsDouble;
 
-                    // if the confidence is lower than minconf
-                    if (conf < minconf || Double.isInfinite(conf)) {
+                    // if the confidence is lower than minimumConfidence
+                    if (conf < minimumConfidence || Double.isInfinite(conf)) {
                         continue;
                     }
 
                     double lift = 0;
                     long supportHm_P_1 = 0;
-                    // if the user is using the minlift threshold, we will need
+                    // if the user is using the minimumLift threshold, we will need
                     // to also calculate the lift of the rule:  itemset_Lk_minus_hm_P_1 ==>  hm_P_1
                     if (usingLift) {
                         // if we want to calculate the lift, we need the support of hm_P_1
@@ -144,12 +120,12 @@ public class AlgoAgrawalFaster94 {
                         lift = term1 / (term2 * term3);
 
                         // if the lift is not enough
-                        if (lift < minlift) {
+                        if (lift < minimumLift) {
                             continue;
                         }
                     }
 
-                    // If we are here, it means that the rule respect the minconf and minlift parameters.
+                    // If we are here, it means that the rule respect the minimumConfidence and minimumLift parameters.
                     // Therefore, we output the rule.
                     associationRuleWriter.write(ImmutableAssociationRule.builder()
                             .antecedent(itemset_Lk_minus_hm_P_1)
@@ -209,14 +185,14 @@ public class AlgoAgrawalFaster94 {
 
                 // if the confidence is not enough than we don't need to consider
                 // the rule  Lk/(hm_P_1) ==> hm_P_1 anymore so we continue
-                if (conf < minconf || Double.isInfinite(conf)) {
+                if (conf < minimumConfidence || Double.isInfinite(conf)) {
                     continue;
                 }
 
                 double lift = 0;
                 long supportHm_P_1 = 0;
-                // if the user is using the minlift threshold, then we will need to calculate the lift of the
-                // rule as well and check if the lift is higher or equal to minlift.
+                // if the user is using the minimumLift threshold, then we will need to calculate the lift of the
+                // rule as well and check if the lift is higher or equal to minimumLift.
                 if (usingLift) {
                     // if we want to calculate the lift, we need the support of Hm+1
                     supportHm_P_1 = itemsetSupportCalculator.calculateSupport(hm_P_1);
@@ -227,7 +203,7 @@ public class AlgoAgrawalFaster94 {
                     lift = term1 / (term2 * ((double) supportHm_P_1 / databaseSize));
 
                     // if the lift is not enough
-                    if (lift < minlift) {
+                    if (lift < minimumLift) {
                         continue;
                     }
                 }

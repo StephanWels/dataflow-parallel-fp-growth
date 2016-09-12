@@ -13,17 +13,16 @@ public class ItemsetSupportCalculator {
 
     private final static ItemsetComparator ITEMSET_COMPARATOR = new ItemsetComparator();
 
-    private final Itemsets patterns;
     private final SupportRepository supportRepository;
 
-    public ItemsetSupportCalculator(final Itemsets patterns,
-                                    final SupportRepository supportRepository) {
-        this.patterns = Objects.requireNonNull(patterns, "patterns");
+    private Itemsets patterns;
+
+    public ItemsetSupportCalculator(final SupportRepository supportRepository) {
         this.supportRepository = Objects.requireNonNull(supportRepository, "supportRepository");
-        init();
     }
 
-    private void init() {
+    public void init(final Itemsets patterns) {
+        this.patterns = Objects.requireNonNull(patterns, "patterns");
         // First, we sort all itemsets having the same size by lexical order
         // We do this for optimization purposes. If the itemsets are sorted, it allows to
         // perform two optimizations:

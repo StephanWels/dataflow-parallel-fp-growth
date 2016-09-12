@@ -5,9 +5,6 @@ import spock.lang.Specification
 
 class AlgoAgrawalFaster94Spec extends Specification {
 
-    def itemsetsCandidateGenerator = new ItemsetCandidateGenerator();
-    def associationRuleWriter = new AssociationRuleInMemoryWriter();
-
     def supportRepository = Mock(SupportRepository) {
         getSupport(_) >> 1l
     }
@@ -31,11 +28,14 @@ class AlgoAgrawalFaster94Spec extends Specification {
         itemsets.addItemset(ImmutableItemset.builder().items([2, 3, 5] as int[]).absoluteSupport(3l).build());
         itemsets.addItemset(ImmutableItemset.builder().items([1, 2, 3, 5] as int[]).absoluteSupport(2l).build());
 
-        def itemsetSupportCalculator = new ItemsetSupportCalculator(itemsets, supportRepository);
-        def algoAgrawalFaster94 = new AlgoAgrawalFaster94(itemsetsCandidateGenerator, itemsetSupportCalculator, associationRuleWriter);
+        def itemsetsCandidateGenerator = new ItemsetCandidateGenerator();
+        def itemsetSupportCalculator = new ItemsetSupportCalculator(supportRepository);
+        def associationRuleWriter = new AssociationRuleInMemoryWriter();
+
+        def algoAgrawalFaster94 = new AlgoAgrawalFaster94(itemsetsCandidateGenerator, itemsetSupportCalculator, associationRuleWriter, itemsets, 5, 0.0, 0.0);
 
         when:
-        algoAgrawalFaster94.runAlgorithm(itemsets, 5);
+        algoAgrawalFaster94.runAlgorithm();
         def rules = associationRuleWriter.getAll();
 
         then:

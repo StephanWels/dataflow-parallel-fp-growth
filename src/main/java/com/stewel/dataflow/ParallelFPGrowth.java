@@ -140,13 +140,14 @@ public class ParallelFPGrowth {
                             .build());
                 });
                 final ItemsetCandidateGenerator itemsetsCandidateGenerator = new ItemsetCandidateGenerator();
-                final ItemsetSupportCalculator itemsetSupportCalculator = new ItemsetSupportCalculator(patterns, SupportRepository.getInstance());
+                final ItemsetSupportCalculator itemsetSupportCalculator = new ItemsetSupportCalculator(SupportRepository.getInstance());
                 final AssociationRuleInMemoryWriter associationRuleWriter = new AssociationRuleInMemoryWriter();
-                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(itemsetsCandidateGenerator, itemsetSupportCalculator, associationRuleWriter);
-
                 long numberTransactions = c.sideInput(transactionCount);
+                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(itemsetsCandidateGenerator, itemsetSupportCalculator, associationRuleWriter, patterns, numberTransactions, MINIMUM_CONFIDENCE, MINIMUM_LIFT);
+
+
                 // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
-                associationRulesExtractionAlgorithm.runAlgorithm(patterns, numberTransactions, MINIMUM_CONFIDENCE, MINIMUM_LIFT);
+                associationRulesExtractionAlgorithm.runAlgorithm();
                 List<AssociationRule> associationRules = associationRuleWriter.getAll();
 
                 final int productId = c.element().getKey();
