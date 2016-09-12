@@ -22,6 +22,7 @@ import com.stewel.dataflow.assocrules.AlgoAgrawalFaster94;
 import com.stewel.dataflow.assocrules.AssociationRule;
 import com.stewel.dataflow.assocrules.AssociationRuleFormatter;
 import com.stewel.dataflow.assocrules.AssociationRuleInMemoryWriter;
+import com.stewel.dataflow.assocrules.ItemsetsCandidateGenerator;
 import com.stewel.dataflow.assocrules.SupportRepository;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
@@ -137,8 +138,9 @@ public class ParallelFPGrowth {
                             .absoluteSupport(itemsListWithSupport.getValue())
                             .build());
                 });
+                final ItemsetsCandidateGenerator itemsetsCandidateGenerator = new ItemsetsCandidateGenerator();
                 final AssociationRuleInMemoryWriter associationRuleWriter = new AssociationRuleInMemoryWriter();
-                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(associationRuleWriter, SupportRepository.getInstance());
+                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(itemsetsCandidateGenerator, associationRuleWriter, SupportRepository.getInstance());
 
                 long numberTransactions = c.sideInput(transactionCount);
                 // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen

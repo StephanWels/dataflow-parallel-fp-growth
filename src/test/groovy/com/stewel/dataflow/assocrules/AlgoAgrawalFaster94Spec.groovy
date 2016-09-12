@@ -7,14 +7,15 @@ import spock.lang.Subject
 
 class AlgoAgrawalFaster94Spec extends Specification {
 
-    def associationRuleRepository = new AssociationRuleInMemoryWriter();
+    def itemsetsCandidateGenerator = new ItemsetsCandidateGenerator();
+    def associationRuleWriter = new AssociationRuleInMemoryWriter();
 
     def supportRepository = Mock(SupportRepository) {
         getSupport(_) >> 1l
     }
 
     @Subject
-    def algoAgrawalFaster94 = new AlgoAgrawalFaster94(associationRuleRepository, supportRepository);
+    def algoAgrawalFaster94 = new AlgoAgrawalFaster94(itemsetsCandidateGenerator, associationRuleWriter, supportRepository);
 
     def "generate association rules"() {
         given:
@@ -37,7 +38,7 @@ class AlgoAgrawalFaster94Spec extends Specification {
 
         when:
         algoAgrawalFaster94.runAlgorithm(itemsets, 5);
-        def rules = associationRuleRepository.getAll();
+        def rules = associationRuleWriter.getAll();
 
         then:
         rules.size() == 50
