@@ -48,7 +48,7 @@ public class AlgoAgrawalFaster94 {
 
     private final static ItemsetComparator ITEMSET_COMPARATOR = new ItemsetComparator();
 
-    private final AssociationRuleRepository associationRuleRepository;
+    private final AssociationRuleWriter associationRuleWriter;
     private final SupportRepository supportRepository;
 
     // the frequent itemsets that will be used to generate the rules
@@ -64,10 +64,10 @@ public class AlgoAgrawalFaster94 {
     /**
      * Default constructor
      */
-    public AlgoAgrawalFaster94(@Nonnull final AssociationRuleRepository associationRuleRepository,
+    public AlgoAgrawalFaster94(@Nonnull final AssociationRuleWriter associationRuleWriter,
                                @Nonnull final SupportRepository supportRepository) {
-        this.associationRuleRepository = Objects.requireNonNull(associationRuleRepository);
-        this.supportRepository = Objects.requireNonNull(supportRepository);
+        this.associationRuleWriter = Objects.requireNonNull(associationRuleWriter, "associationRuleWriter");
+        this.supportRepository = Objects.requireNonNull(supportRepository, "supportRepository");
     }
 
     /**
@@ -178,7 +178,7 @@ public class AlgoAgrawalFaster94 {
 
                     // If we are here, it means that the rule respect the minconf and minlift parameters.
                     // Therefore, we output the rule.
-                    associationRuleRepository.save(ImmutableAssociationRule.builder()
+                    associationRuleWriter.write(ImmutableAssociationRule.builder()
                             .antecedent(itemset_Lk_minus_hm_P_1)
                             .consequent(itemsetHm_P_1)
                             .coverage(support)
@@ -261,7 +261,7 @@ public class AlgoAgrawalFaster94 {
 
                 // The rule has passed the confidence and lift threshold requirements,
                 // so we can output it
-                associationRuleRepository.save(ImmutableAssociationRule.builder()
+                associationRuleWriter.write(ImmutableAssociationRule.builder()
                         .antecedent(itemset_Lk_minus_hm_P_1)
                         .consequent(hm_P_1)
                         .coverage(support)

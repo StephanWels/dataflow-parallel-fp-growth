@@ -21,14 +21,20 @@ import com.google.cloud.dataflow.sdk.values.PCollectionView;
 import com.stewel.dataflow.assocrules.AlgoAgrawalFaster94;
 import com.stewel.dataflow.assocrules.AssociationRule;
 import com.stewel.dataflow.assocrules.AssociationRuleFormatter;
-import com.stewel.dataflow.assocrules.AssociationRuleInMemoryRepository;
-import com.stewel.dataflow.assocrules.AssociationRuleRepository;
+import com.stewel.dataflow.assocrules.AssociationRuleInMemoryWriter;
 import com.stewel.dataflow.assocrules.SupportRepository;
 import com.stewel.dataflow.fpgrowth.AlgoFPGrowth;
 import com.stewel.dataflow.fpgrowth.FPTreeConverter;
 import com.stewel.dataflow.fpgrowth.ImmutableItemset;
 import com.stewel.dataflow.fpgrowth.Itemsets;
-import com.stewel.dataflow.functions.*;
+import com.stewel.dataflow.functions.CategoryIdAndCategoryNamePairsFn;
+import com.stewel.dataflow.functions.ExpandTopKStringPatternsToAllSubPatternsDoFn;
+import com.stewel.dataflow.functions.FrequentItemSetToBigTablePutCommandFn;
+import com.stewel.dataflow.functions.GenerateGroupDependentTransactionsDoFn;
+import com.stewel.dataflow.functions.OutputPatternForEachContainingProductIdDoFn;
+import com.stewel.dataflow.functions.ProductIdAndTransactionIdPairsFn;
+import com.stewel.dataflow.functions.SelectTopKPatternFn;
+import com.stewel.dataflow.functions.TransactionIdAndProductIdPairsFn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -131,13 +137,13 @@ public class ParallelFPGrowth {
                             .absoluteSupport(itemsListWithSupport.getValue())
                             .build());
                 });
-                final AssociationRuleRepository associationRuleRepository = new AssociationRuleInMemoryRepository();
-                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(associationRuleRepository, SupportRepository.getInstance());
+                final AssociationRuleInMemoryWriter associationRuleWriter = new AssociationRuleInMemoryWriter();
+                final AlgoAgrawalFaster94 associationRulesExtractionAlgorithm = new AlgoAgrawalFaster94(associationRuleWriter, SupportRepository.getInstance());
 
                 long numberTransactions = c.sideInput(transactionCount);
                 // an dieser stelle fehlen (sub-)patterns, um die confidence zu berechnen
                 associationRulesExtractionAlgorithm.runAlgorithm(patterns, numberTransactions, MINIMUM_CONFIDENCE, MINIMUM_LIFT);
-                List<AssociationRule> associationRules = associationRuleRepository.findAll();
+                List<AssociationRule> associationRules = associationRuleWriter.getAll();
 
                 final int productId = c.element().getKey();
 

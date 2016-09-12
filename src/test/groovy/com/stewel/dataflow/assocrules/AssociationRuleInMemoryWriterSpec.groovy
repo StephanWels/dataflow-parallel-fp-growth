@@ -3,10 +3,10 @@ package com.stewel.dataflow.assocrules
 import spock.lang.Specification
 import spock.lang.Subject
 
-class AssociationRuleInMemoryRepositorySpec extends Specification {
+class AssociationRuleInMemoryWriterSpec extends Specification {
 
     @Subject
-    def associationRuleInMemoryRepository = new AssociationRuleInMemoryRepository();
+    def associationRuleInMemoryWriter = new AssociationRuleInMemoryWriter();
 
     AssociationRule rule1 = ImmutableAssociationRule.builder()
             .antecedent(1, 2)
@@ -28,8 +28,8 @@ class AssociationRuleInMemoryRepositorySpec extends Specification {
 
     def "save and retrieve association rules"() {
         when:
-        associationRuleInMemoryRepository.save(rule1);
-        def result1 = associationRuleInMemoryRepository.findAll();
+        associationRuleInMemoryWriter.write(rule1);
+        def result1 = associationRuleInMemoryWriter.getAll();
 
         then:
         result1.size() == 1
@@ -37,8 +37,8 @@ class AssociationRuleInMemoryRepositorySpec extends Specification {
         result1[0].consequent == [3, 4]
 
         and:
-        associationRuleInMemoryRepository.save(rule2);
-        def result2 = associationRuleInMemoryRepository.findAll();
+        associationRuleInMemoryWriter.write(rule2);
+        def result2 = associationRuleInMemoryWriter.getAll();
 
         then:
         result2.size() == 2
