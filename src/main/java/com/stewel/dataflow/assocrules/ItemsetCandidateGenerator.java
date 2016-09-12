@@ -3,7 +3,7 @@ package com.stewel.dataflow.assocrules;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ItemsetsCandidateGenerator {
+public class ItemsetCandidateGenerator {
 
     /**
      * Generating candidate itemsets of size k from frequent itemsets of size k-1. This is called "apriori-gen" in the

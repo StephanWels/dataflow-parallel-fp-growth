@@ -1,21 +1,16 @@
 package com.stewel.dataflow.assocrules
-
 import com.stewel.dataflow.fpgrowth.ImmutableItemset
 import com.stewel.dataflow.fpgrowth.Itemsets
 import spock.lang.Specification
-import spock.lang.Subject
 
 class AlgoAgrawalFaster94Spec extends Specification {
 
-    def itemsetsCandidateGenerator = new ItemsetsCandidateGenerator();
+    def itemsetsCandidateGenerator = new ItemsetCandidateGenerator();
     def associationRuleWriter = new AssociationRuleInMemoryWriter();
 
     def supportRepository = Mock(SupportRepository) {
         getSupport(_) >> 1l
     }
-
-    @Subject
-    def algoAgrawalFaster94 = new AlgoAgrawalFaster94(itemsetsCandidateGenerator, associationRuleWriter, supportRepository);
 
     def "generate association rules"() {
         given:
@@ -35,6 +30,9 @@ class AlgoAgrawalFaster94Spec extends Specification {
         itemsets.addItemset(ImmutableItemset.builder().items([1, 3, 5] as int[]).absoluteSupport(2l).build());
         itemsets.addItemset(ImmutableItemset.builder().items([2, 3, 5] as int[]).absoluteSupport(3l).build());
         itemsets.addItemset(ImmutableItemset.builder().items([1, 2, 3, 5] as int[]).absoluteSupport(2l).build());
+
+        def itemsetSupportCalculator = new ItemsetSupportCalculator(itemsets, supportRepository);
+        def algoAgrawalFaster94 = new AlgoAgrawalFaster94(itemsetsCandidateGenerator, itemsetSupportCalculator, associationRuleWriter);
 
         when:
         algoAgrawalFaster94.runAlgorithm(itemsets, 5);

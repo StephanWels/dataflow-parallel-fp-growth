@@ -17,15 +17,12 @@ package com.stewel.dataflow.assocrules;
 */
 
 import com.stewel.dataflow.fpgrowth.Itemset;
-import com.stewel.dataflow.fpgrowth.ItemsetComparator;
 import com.stewel.dataflow.fpgrowth.Itemsets;
 import org.apache.commons.digester.Rules;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -46,14 +43,9 @@ import java.util.Objects;
 
 public class AlgoAgrawalFaster94 {
 
-    private final static ItemsetComparator ITEMSET_COMPARATOR = new ItemsetComparator();
-
-    private final ItemsetsCandidateGenerator itemsetsCandidateGenerator;
+    private final ItemsetCandidateGenerator itemsetsCandidateGenerator;
+    private final ItemsetSupportCalculator itemsetSupportCalculator;
     private final AssociationRuleWriter associationRuleWriter;
-    private final SupportRepository supportRepository;
-
-    // the frequent itemsets that will be used to generate the rules
-    private Itemsets patterns;
 
     protected long databaseSize = 0; // number of transactions in database
 
@@ -65,12 +57,12 @@ public class AlgoAgrawalFaster94 {
     /**
      * Default constructor
      */
-    public AlgoAgrawalFaster94(@Nonnull final ItemsetsCandidateGenerator itemsetsCandidateGenerator,
-                               @Nonnull final AssociationRuleWriter associationRuleWriter,
-                               @Nonnull final SupportRepository supportRepository) {
+    public AlgoAgrawalFaster94(@Nonnull final ItemsetCandidateGenerator itemsetsCandidateGenerator,
+                               @Nonnull final ItemsetSupportCalculator itemsetSupportCalculator,
+                               @Nonnull final AssociationRuleWriter associationRuleWriter) {
         this.itemsetsCandidateGenerator = Objects.requireNonNull(itemsetsCandidateGenerator, "itemsetsCandidateGenerator");
+        this.itemsetSupportCalculator = Objects.requireNonNull(itemsetSupportCalculator, "itemsetSupportCalculator");
         this.associationRuleWriter = Objects.requireNonNull(associationRuleWriter, "associationRuleWriter");
-        this.supportRepository = Objects.requireNonNull(supportRepository, "supportRepository");
     }
 
     /**
@@ -107,30 +99,6 @@ public class AlgoAgrawalFaster94 {
     private void runAlgorithm(Itemsets patterns, long databaseSize)
             throws IOException {
         this.databaseSize = databaseSize;
-        // save itemsets in a member variable
-        this.patterns = patterns;
-
-        // SORTING
-        // First, we sort all itemsets having the same size by lexical order
-        // We do this for optimization purposes. If the itemsets are sorted, it allows to
-        // perform two optimizations:
-        // 1) When we need to calculate the support of an itemset (in the method
-        // "calculateSupport()") we can use a binary search instead of browsing the whole list.
-        // 2) When combining itemsets to generate candidate, we can use the
-        //    lexical order to avoid comparisons (in the method "generateCandidates()").
-
-        // For itemsets of the same size
-        for (List<Itemset> itemsetsSameSize : patterns.getLevels()) {
-            // Sort by lexicographical order using a Comparator
-            Collections.sort(itemsetsSameSize, new Comparator<Itemset>() {
-                @Override
-                public int compare(Itemset o1, Itemset o2) {
-                    // The following code assume that itemsets are the same size
-                    return ITEMSET_COMPARATOR.compare(o1.getItems(), o2.getItems());
-                }
-            });
-        }
-        // END OF SORTING
 
         // Now we will generate the rules.
 
@@ -150,7 +118,7 @@ public class AlgoAgrawalFaster94 {
 
                     // Now we will calculate the support and confidence
                     // of the rule: itemset_Lk_minus_hm_P_1 ==>  hm_P_1
-                    long support = calculateSupport(itemset_Lk_minus_hm_P_1); // THIS COULD BE
+                    long support = itemsetSupportCalculator.calculateSupport(itemset_Lk_minus_hm_P_1); // THIS COULD BE
                     // OPTIMIZED ?
                     double supportAsDouble = (double) support;
 
@@ -168,7 +136,7 @@ public class AlgoAgrawalFaster94 {
                     // to also calculate the lift of the rule:  itemset_Lk_minus_hm_P_1 ==>  hm_P_1
                     if (usingLift) {
                         // if we want to calculate the lift, we need the support of hm_P_1
-                        supportHm_P_1 = calculateSupport(itemsetHm_P_1);  // if we want to calculate the lift, we need to add this.
+                        supportHm_P_1 = itemsetSupportCalculator.calculateSupport(itemsetHm_P_1);  // if we want to calculate the lift, we need to add this.
                         // calculate the lift
                         double term1 = ((double) lk.getAbsoluteSupport()) / databaseSize;
                         double term2 = supportAsDouble / databaseSize;
@@ -232,7 +200,7 @@ public class AlgoAgrawalFaster94 {
 
                 // We will now calculate the support of the rule  Lk/(hm_P_1) ==> hm_P_1
                 // we need it to calculate the confidence
-                long support = calculateSupport(itemset_Lk_minus_hm_P_1);
+                long support = itemsetSupportCalculator.calculateSupport(itemset_Lk_minus_hm_P_1);
 
                 double supportAsDouble = (double) support;
 
@@ -251,7 +219,7 @@ public class AlgoAgrawalFaster94 {
                 // rule as well and check if the lift is higher or equal to minlift.
                 if (usingLift) {
                     // if we want to calculate the lift, we need the support of Hm+1
-                    supportHm_P_1 = calculateSupport(hm_P_1);
+                    supportHm_P_1 = itemsetSupportCalculator.calculateSupport(hm_P_1);
                     // calculate the lift of the rule:  Lk/(hm_P_1) ==> hm_P_1
                     double term1 = ((double) lk.getAbsoluteSupport()) / databaseSize;
                     double term2 = (supportAsDouble) / databaseSize;
@@ -283,39 +251,5 @@ public class AlgoAgrawalFaster94 {
             // recursive call to apGenRules to find more rules using "lk"
             apGenrules(k, m + 1, lk, Hm_plus_1_for_recursion);
         }
-    }
-
-    /**
-     * Calculate the support of an itemset by looking at the frequent patterns
-     * of the same size.
-     * Because patterns are sorted by lexical order, we use a binary search.
-     * This is MUCH MORE efficient than just browsing the full list of patterns.
-     *
-     * @param itemset the itemset.
-     * @return the support of the itemset
-     */
-    private long calculateSupport(int[] itemset) {
-        // We first get the list of patterns having the same size as "itemset"
-        List<Itemset> patternsSameSize = patterns.getLevels().get(itemset.length);
-
-        // We perform a binary search to find the position of itemset in this list
-        int first = 0;
-        int last = patternsSameSize.size() - 1;
-
-        while (first <= last) {
-            int middle = (first + last) >> 1; // >>1 means to divide by 2
-            int[] itemsetMiddle = patternsSameSize.get(middle).getItems();
-
-            int comparison = ITEMSET_COMPARATOR.compare(itemset, itemsetMiddle);
-            if (comparison > 0) {
-                first = middle + 1;  //  the itemset compared is larger than the subset according to the lexical order
-            } else if (comparison < 0) {
-                last = middle - 1; //  the itemset compared is smaller than the subset  is smaller according to the lexical order
-            } else {
-                // we have found the itemset, so we return its support.
-                return patternsSameSize.get(middle).getAbsoluteSupport();
-            }
-        }
-        return (int) supportRepository.getSupport(itemset);
     }
 }
